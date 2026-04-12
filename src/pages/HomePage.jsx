@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import FaqSection from '../components/FaqSection'
 import ProductCard from '../components/ProductCard'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { getCategories, getProducts } from '../services/catalogService'
 
 const ACCESSORY_SLIDES = [
@@ -46,6 +47,8 @@ function normalizeCategory(value = '') {
 }
 
 function HomePage() {
+  usePageTitle('Synex - Trang chủ')
+
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
 
@@ -72,44 +75,55 @@ function HomePage() {
   }, [])
 
   return (
-    <div className="page-stack">
-      <section className="home-apple-banner">
-        <div className="home-apple-banner-content">
-          <h1>Discover what&apos;s new</h1>
-          <p>Giải pháp đơn giản cho mọi công việc của bạn.</p>
-          <Link to="/products" className="home-apple-cta">
+    <div className="space-y-4">
+      <section
+        className="flex min-h-[420px] items-center overflow-hidden rounded-[22px] bg-cover bg-right bg-no-repeat"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(243, 246, 252, 0.86) 0%, rgba(243, 246, 252, 0.55) 42%, rgba(243, 246, 252, 0.08) 100%), url('https://images.unsplash.com/photo-1603898037225-1f3f4f4bf4e9?w=2200&q=100')",
+        }}
+      >
+        <div className="max-w-xl px-8 py-8 backdrop-blur-[1px] sm:px-10">
+          <h1 className="text-4xl font-bold tracking-tight text-ink sm:text-6xl">Discover what&apos;s new</h1>
+          <p className="mt-3 text-lg text-slate-700 sm:text-xl">Giải pháp đơn giản cho mọi công việc của bạn.</p>
+          <Link
+            to="/products"
+            className="mt-6 inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 font-semibold text-white transition hover:bg-slate-800"
+          >
             View all
           </Link>
         </div>
       </section>
 
-      <section className="section-block home-accessory-slider">
-        <div className="home-slider-head">
-          <h2>Phụ kiện Apple nổi bật</h2>
-          <Link to="/products">Xem tất cả</Link>
+      <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 className="text-2xl font-bold text-ink">Phụ kiện Apple nổi bật</h2>
+          <Link to="/products" className="font-semibold text-sky-700">
+            Xem tất cả
+          </Link>
         </div>
-        <div className="home-slider-track">
+        <div className="grid gap-3 md:grid-cols-4">
           {ACCESSORY_SLIDES.map((slide) => (
-            <article key={slide.title} className="home-slide-card">
-              <img src={slide.image} alt={slide.title} />
-              <p>{slide.title}</p>
+            <article key={slide.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <img src={slide.image} alt={slide.title} className="aspect-[4/3] w-full object-cover" />
+              <p className="m-0 p-3 font-semibold text-ink">{slide.title}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="section-block">
-        <h2>Category</h2>
-        <div className="home-category-grid">
+      <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-2xl font-bold text-ink">Category</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {categories.slice(0, 8).map((category) => (
             <Link
               key={category.id || category.name}
               to={`/products?category=${encodeURIComponent(
                 normalizeCategory(category.name || category.categoryName || ''),
               )}`}
-              className="home-category-card"
+              className="grid min-h-24 justify-items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-center text-ink transition hover:-translate-y-0.5 hover:shadow-sm"
             >
-              <span className="home-category-icon">
+              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-xl">
                 {getCategoryIcon(category.name || category.categoryName || '')}
               </span>
               <span>{category.name || category.categoryName || 'Category'}</span>
@@ -118,30 +132,30 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="section-block">
-        <h2>Sản phẩm nổi bật</h2>
-        <div className="product-grid">
+      <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-2xl font-bold text-ink">Sản phẩm nổi bật</h2>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {products.map((product) => (
             <ProductCard key={product.id || product.productId} product={product} />
           ))}
         </div>
       </section>
 
-      <section className="section-block">
-        <h2>Cộng đồng người dùng</h2>
-        <p>
+      <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+        <h2 className="mb-3 text-2xl font-bold text-ink">Cộng đồng người dùng</h2>
+        <p className="max-w-3xl text-slate-700">
           Chia sẻ góc setup, kinh nghiệm sử dụng và cập nhật ưu đãi mới nhất từ Synex.
         </p>
       </section>
 
-      <section className="section-block">
-        <h2>Những hãng đã hợp tác</h2>
-        <div className="partner-row">
-          <span>Atlas</span>
-          <span>Core Desk</span>
-          <span>Alpha Pro</span>
-          <span>MagSnap</span>
-          <span>Ivy Pro</span>
+      <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-2xl font-bold text-ink">Những hãng đã hợp tác</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <span className="rounded-2xl border border-dashed border-borderStrong px-4 py-3 text-center">Atlas</span>
+          <span className="rounded-2xl border border-dashed border-borderStrong px-4 py-3 text-center">Core Desk</span>
+          <span className="rounded-2xl border border-dashed border-borderStrong px-4 py-3 text-center">Alpha Pro</span>
+          <span className="rounded-2xl border border-dashed border-borderStrong px-4 py-3 text-center">MagSnap</span>
+          <span className="rounded-2xl border border-dashed border-borderStrong px-4 py-3 text-center">Ivy Pro</span>
         </div>
       </section>
 

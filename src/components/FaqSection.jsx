@@ -52,28 +52,31 @@ function FaqSection({ variant = 'home' }) {
 	}
 
 	return (
-		<section className="section-block faq-block contact-faq-section" aria-label="Frequently asked questions">
-			<h2>Cau hoi thuong gap</h2>
+		<section className="rounded-[28px] border border-border bg-white p-6 shadow-sm" aria-label="Frequently asked questions">
+			<h2 className="mb-4 text-2xl font-bold text-ink">Cau hoi thuong gap</h2>
 
-			<div className="contact-faq-list">
+			<div className="space-y-3">
 				{items.map((item, index) => {
 					const isOpen = openIndex === index
 
 					return (
-						<article key={item.question} className="contact-faq-item">
+						<article key={item.question} className="rounded-2xl border border-border bg-slate-50/80">
 							<button
 								type="button"
-								className="contact-faq-trigger"
+								className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left"
 								onClick={() => toggleItem(index)}
 								aria-expanded={isOpen}
 							>
-								<span>{item.question}</span>
-								<span className={`contact-faq-icon ${isOpen ? 'is-open' : ''}`} aria-hidden="true">
+								<span className="font-medium text-ink">{item.question}</span>
+								<span
+									className={`grid h-8 w-8 place-items-center rounded-full bg-white text-xl font-semibold text-sky-600 shadow-sm transition-transform ${isOpen ? 'rotate-45' : ''}`}
+									aria-hidden="true"
+								>
 									+
 								</span>
 							</button>
 
-							{isOpen ? <p className="contact-faq-answer">{item.answer}</p> : null}
+							{isOpen ? <p className="px-4 pb-4 text-sm leading-7 text-muted">{item.answer}</p> : null}
 						</article>
 					)
 				})}

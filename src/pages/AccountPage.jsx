@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { resolveRoleValue } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
+import { usePageTitle } from '../hooks/usePageTitle'
 import {
   changeMyPassword,
   createAddress,
@@ -13,6 +15,8 @@ import { getMyOrders } from '../services/orderService'
 import { getAddressLabel } from '../utils/normalizers'
 
 function AccountPage() {
+  usePageTitle('Tài khoản - Synex')
+
   const { token, loadProfile } = useAuth()
 
   const [message, setMessage] = useState('')
@@ -105,10 +109,7 @@ function AccountPage() {
     return date.toLocaleDateString('vi-VN')
   }, [profile])
   const accountRole = useMemo(
-    () =>
-      String(profile?.role || profile?.userRole || 'USER')
-        .replace('ROLE_', '')
-        .toUpperCase(),
+    () => resolveRoleValue(profile),
     [profile],
   )
 
@@ -190,167 +191,170 @@ function AccountPage() {
   }
 
   return (
-    <div className="account-page-shell">
-      <section className="account-hero-grid">
-        <article className="account-hero-main">
-          <div className="account-avatar">{profileInitial}</div>
-          <div className="account-hero-content">
-            <p className="account-overline">THONG TIN NGUOI DUNG</p>
-            <h1>{profileForm.fullName || 'Người dùng Synex'}</h1>
-            <p>{profileForm.email || 'Cập nhật email de nhan thong bao don hang moi nhat.'}</p>
-            <div className="account-pill-row">
-              <span className="account-pill">Thanh vien tu {memberSince}</span>
-              <span className="account-pill">{addresses.length} dia chi</span>
-              <span className="account-pill">{recentOrdersCount} don gan day</span>
+    <div className="space-y-4">
+      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <article className="flex gap-5 rounded-[28px] border border-border bg-white p-8 shadow-sm">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-900 text-3xl font-bold text-white">
+            {profileInitial}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">THONG TIN NGUOI DUNG</p>
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">{profileForm.fullName || 'Người dùng Synex'}</h1>
+            <p className="mt-2 text-slate-700">{profileForm.email || 'Cập nhật email de nhan thong bao don hang moi nhat.'}</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Thanh vien tu {memberSince}</span>
+              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">{addresses.length} dia chi</span>
+              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">{recentOrdersCount} don gan day</span>
             </div>
           </div>
         </article>
 
-        <article className="account-stats-grid">
-          <div className="account-stat-card">
-            <strong>{String(addresses.length).padStart(2, '0')}</strong>
-            <span>Dia chi nhan hang</span>
+        <article className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
+            <strong className="block text-3xl font-bold text-ink">{String(addresses.length).padStart(2, '0')}</strong>
+            <span className="mt-2 block text-sm text-slate-600">Dia chi nhan hang</span>
           </div>
-          <div className="account-stat-card">
-            <strong>{String(recentOrdersCount).padStart(2, '0')}</strong>
-            <span>Don hang gan day</span>
+          <div className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
+            <strong className="block text-3xl font-bold text-ink">{String(recentOrdersCount).padStart(2, '0')}</strong>
+            <span className="mt-2 block text-sm text-slate-600">Don hang gan day</span>
           </div>
-          <div className="account-stat-card dark">
-            <strong>{accountRole}</strong>
-            <span>Vai tro tai khoan</span>
+          <div className="rounded-3xl border border-slate-900 bg-slate-950 p-5 shadow-sm text-white">
+            <strong className="block text-2xl font-bold">{accountRole}</strong>
+            <span className="mt-2 block text-sm text-slate-300">Vai tro tai khoan</span>
           </div>
-          <div className="account-stat-card">
-            <strong>{defaultAddress ? 'DAY DU' : 'CO BAN'}</strong>
-            <span>Muc do ho so</span>
+          <div className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
+            <strong className="block text-3xl font-bold text-ink">{defaultAddress ? 'DAY DU' : 'CO BAN'}</strong>
+            <span className="mt-2 block text-sm text-slate-600">Muc do ho so</span>
           </div>
         </article>
       </section>
 
-      {message && <p className="hint account-message">{message}</p>}
+      {message && <p className="text-sm font-medium text-slate-600">{message}</p>}
 
-      <section className="account-content-grid">
-        <div className="account-left-column">
-          <form className="account-card" onSubmit={handleUpdateProfile}>
-            <h2>Thong tin ca nhan</h2>
-            <p>Cập nhật thong tin lien he de giao hang va hỗ trợ nhanh hon.</p>
+      <section className="grid gap-4 lg:grid-cols-[1fr_420px]">
+        <div className="space-y-4">
+          <form className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm" onSubmit={handleUpdateProfile}>
+            <h2 className="text-2xl font-bold text-ink">Thong tin ca nhan</h2>
+            <p className="text-slate-700">Cập nhật thong tin lien he de giao hang va hỗ trợ nhanh hon.</p>
 
-            <div className="form-row-2">
-              <label className="form-field" htmlFor="fullName">
-                <span>Ho va ten</span>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block space-y-2" htmlFor="fullName">
+                <span className="text-sm font-medium text-ink">Ho va ten</span>
                 <input
                   id="fullName"
                   value={profileForm.fullName}
-                  onChange={(event) =>
-                    setProfileForm((prev) => ({ ...prev, fullName: event.target.value }))
-                  }
+                  onChange={(event) => setProfileForm((prev) => ({ ...prev, fullName: event.target.value }))}
                   placeholder="Nhap ho va ten"
+                  className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
 
-              <label className="form-field" htmlFor="phoneNumber">
-                <span>So dien thoai</span>
+              <label className="block space-y-2" htmlFor="phoneNumber">
+                <span className="text-sm font-medium text-ink">So dien thoai</span>
                 <input
                   id="phoneNumber"
                   value={profileForm.phoneNumber}
-                  onChange={(event) =>
-                    setProfileForm((prev) => ({ ...prev, phoneNumber: event.target.value }))
-                  }
+                  onChange={(event) => setProfileForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
                   placeholder="Nhap so dien thoai"
+                  className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
             </div>
 
-            <label className="form-field" htmlFor="email">
-              <span>Email</span>
+            <label className="block space-y-2" htmlFor="email">
+              <span className="text-sm font-medium text-ink">Email</span>
               <input
                 id="email"
                 type="email"
                 value={profileForm.email}
-                onChange={(event) =>
-                  setProfileForm((prev) => ({ ...prev, email: event.target.value }))
-                }
+                onChange={(event) => setProfileForm((prev) => ({ ...prev, email: event.target.value }))}
                 placeholder="Nhap email"
+                className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               />
             </label>
 
-            <button type="submit" className="account-action-btn">
+            <button type="submit" className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
               Luu thong tin
             </button>
           </form>
 
-          <form className="account-card" onSubmit={handleChangePassword}>
-            <h2>Thay đổi mật khẩu</h2>
-            <p>Khuyến nghị đặt mật khẩu tối thiểu 8 ký tự và bao gồm chữ + số.</p>
+          <form className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm" onSubmit={handleChangePassword}>
+            <h2 className="text-2xl font-bold text-ink">Thay đổi mật khẩu</h2>
+            <p className="text-slate-700">Khuyến nghị đặt mật khẩu tối thiểu 8 ký tự và bao gồm chữ + số.</p>
 
-            <label className="form-field" htmlFor="oldPassword">
-              <span>Mật khẩu hien tai</span>
+            <label className="block space-y-2" htmlFor="oldPassword">
+              <span className="text-sm font-medium text-ink">Mật khẩu hien tai</span>
               <input
                 id="oldPassword"
                 type="password"
                 value={passwordForm.oldPassword}
-                onChange={(event) =>
-                  setPasswordForm((prev) => ({ ...prev, oldPassword: event.target.value }))
-                }
+                onChange={(event) => setPasswordForm((prev) => ({ ...prev, oldPassword: event.target.value }))}
                 required
+                className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               />
             </label>
 
-            <div className="form-row-2">
-              <label className="form-field" htmlFor="newPassword">
-                <span>Mật khẩu moi</span>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block space-y-2" htmlFor="newPassword">
+                <span className="text-sm font-medium text-ink">Mật khẩu moi</span>
                 <input
                   id="newPassword"
                   type="password"
                   value={passwordForm.newPassword}
-                  onChange={(event) =>
-                    setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))
-                  }
+                  onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
                   required
+                  className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
 
-              <label className="form-field" htmlFor="confirmPassword">
-                <span>Xác nhận mật khẩu mới</span>
+              <label className="block space-y-2" htmlFor="confirmPassword">
+                <span className="text-sm font-medium text-ink">Xác nhận mật khẩu mới</span>
                 <input
                   id="confirmPassword"
                   type="password"
                   value={passwordForm.confirmPassword}
-                  onChange={(event) =>
-                    setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))
-                  }
+                  onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
                   required
+                  className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
             </div>
 
-            <button type="submit" className="account-action-btn">
+            <button type="submit" className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
               Cập nhật mat khau
             </button>
           </form>
+
         </div>
 
-        <aside className="account-right-column">
-          <section className="account-card">
-            <h2>Dia chi nhan hang</h2>
-            <p>Quan ly dia chi giao hang de dat don nhanh hon.</p>
+        <aside className="space-y-4">
+          <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold text-ink">Dia chi nhan hang</h2>
+            <p className="mt-2 text-slate-700">Quan ly dia chi giao hang de dat don nhanh hon.</p>
 
             {addresses.length === 0 ? (
-              <p>Chưa co dia chi nao tu backend.</p>
+              <p className="mt-4 text-slate-600">Chưa co dia chi nao tu backend.</p>
             ) : (
-              <div className="address-grid">
+              <div className="mt-4 space-y-3">
                 {addresses.map((address) => (
-                  <article key={address.id} className="address-card">
-                    <p>
-                      <strong>{address.fullName}</strong>
-                    </p>
-                    <p>{getAddressLabel(address)}</p>
-                    <p>{address.phoneNumber}</p>
-                    <p>{address.isDefault ? 'Mac dinh' : 'Dia chi phu'}</p>
-                    <div className="row">
-                      <button type="button" onClick={() => handleSetDefault(address.id)}>
+                  <article key={address.id} className="rounded-2xl border border-border bg-slate-50 p-4">
+                    <p className="font-semibold text-ink">{address.fullName}</p>
+                    <p className="mt-1 text-sm text-slate-700">{getAddressLabel(address)}</p>
+                    <p className="mt-1 text-sm text-slate-700">{address.phoneNumber}</p>
+                    <p className="mt-1 text-sm text-slate-500">{address.isDefault ? 'Mac dinh' : 'Dia chi phu'}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSetDefault(address.id)}
+                        className="rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:bg-slate-100"
+                      >
                         Đặt mặc định
                       </button>
-                      <button type="button" onClick={() => handleDeleteAddress(address.id)}>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAddress(address.id)}
+                        className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+                      >
                         Xóa
                       </button>
                     </div>
@@ -359,82 +363,79 @@ function AccountPage() {
               </div>
             )}
 
-            <form className="account-address-form" onSubmit={handleCreateAddress}>
-              <div className="form-row-2">
-                <label className="form-field" htmlFor="addressFullName">
-                  <span>Ho ten nguoi nhan</span>
+            <form className="mt-6 space-y-4" onSubmit={handleCreateAddress}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block space-y-2" htmlFor="addressFullName">
+                  <span className="text-sm font-medium text-ink">Ho ten nguoi nhan</span>
                   <input
                     id="addressFullName"
                     value={addressForm.fullName}
-                    onChange={(event) =>
-                      setAddressForm((prev) => ({ ...prev, fullName: event.target.value }))
-                    }
+                    onChange={(event) => setAddressForm((prev) => ({ ...prev, fullName: event.target.value }))}
                     required
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
-                <label className="form-field" htmlFor="addressPhone">
-                  <span>So dien thoai</span>
+                <label className="block space-y-2" htmlFor="addressPhone">
+                  <span className="text-sm font-medium text-ink">So dien thoai</span>
                   <input
                     id="addressPhone"
                     value={addressForm.phoneNumber}
-                    onChange={(event) =>
-                      setAddressForm((prev) => ({ ...prev, phoneNumber: event.target.value }))
-                    }
+                    onChange={(event) => setAddressForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
                     required
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
               </div>
 
-              <label className="form-field" htmlFor="addressLine">
-                <span>Dia chi cu the</span>
+              <label className="block space-y-2" htmlFor="addressLine">
+                <span className="text-sm font-medium text-ink">Dia chi cu the</span>
                 <input
                   id="addressLine"
                   value={addressForm.addressLine}
-                  onChange={(event) =>
-                    setAddressForm((prev) => ({ ...prev, addressLine: event.target.value }))
-                  }
+                  onChange={(event) => setAddressForm((prev) => ({ ...prev, addressLine: event.target.value }))}
                   required
+                  className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
 
-              <div className="form-row-2">
-                <label className="form-field" htmlFor="district">
-                  <span>Quan/Huyen</span>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block space-y-2" htmlFor="district">
+                  <span className="text-sm font-medium text-ink">Quan/Huyen</span>
                   <input
                     id="district"
                     value={addressForm.district}
-                    onChange={(event) =>
-                      setAddressForm((prev) => ({ ...prev, district: event.target.value }))
-                    }
+                    onChange={(event) => setAddressForm((prev) => ({ ...prev, district: event.target.value }))}
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
-                <label className="form-field" htmlFor="addressCity">
-                  <span>Thành phố</span>
+                <label className="block space-y-2" htmlFor="addressCity">
+                  <span className="text-sm font-medium text-ink">Thành phố</span>
                   <input
                     id="addressCity"
                     value={addressForm.city}
-                    onChange={(event) =>
-                      setAddressForm((prev) => ({ ...prev, city: event.target.value }))
-                    }
+                    onChange={(event) => setAddressForm((prev) => ({ ...prev, city: event.target.value }))}
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
               </div>
 
-              <button type="submit" className="account-action-btn">
+              <button type="submit" className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
                 Thêm địa chỉ
               </button>
             </form>
           </section>
 
-          <section className="account-card">
-            <h2>Ho tro nhanh</h2>
-            <p>Can tro giup ve don hang, bao hanh hoac tư vấn thiet bi?</p>
-            <Link to="/contact" className="ghost-link account-link-btn">
-              Liên hệ ngay
-            </Link>
-            <Link to="/products" className="ghost-link account-link-btn">
-              Xem them san pham
-            </Link>
+          <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+            <h2 className="text-2xl font-bold text-ink">Ho tro nhanh</h2>
+            <p className="mt-2 text-slate-700">Can tro giup ve don hang, bao hanh hoac tư vấn thiet bi?</p>
+            <div className="mt-4 flex flex-col gap-3">
+              <Link to="/contact" className="rounded-full border border-border bg-white px-5 py-3 text-center font-semibold text-ink transition hover:bg-slate-50">
+                Liên hệ ngay
+              </Link>
+              <Link to="/products" className="rounded-full border border-border bg-white px-5 py-3 text-center font-semibold text-ink transition hover:bg-slate-50">
+                Xem them san pham
+              </Link>
+            </div>
           </section>
         </aside>
       </section>

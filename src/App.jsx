@@ -1,8 +1,8 @@
-import { Route, Routes } from 'react-router-dom'
-import Footer from './components/Footer'
-import NavBar from './components/NavBar'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminPage from './pages/AdminPage'
+import AdminOrdersPage from './pages/AdminOrdersPage'
+import AdminProductsPage from './pages/AdminProductsPage'
 import AccountPage from './pages/AccountPage'
 import CartPage from './pages/CartPage'
 import CheckoutPage from './pages/CheckoutPage'
@@ -10,51 +10,69 @@ import ContactPage from './pages/ContactPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
+import OrdersPage from './pages/OrdersPage'
 import ProductsPage from './pages/ProductsPage'
 import RegisterPage from './pages/RegisterPage'
-import './App.css'
+import AdminLayout from './layouts/AdminLayout'
+import AuthLayout from './layouts/AuthLayout'
+import StorefrontLayout from './layouts/StorefrontLayout'
+import { ROUTES } from './constants'
 
 function App() {
   return (
-    <div className="site-shell">
-      <NavBar />
-      <main className="site-main">
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/products" element={<ProductsPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/cart" element={<CartPage />} />
-          <Route
-            path="/checkout"
-            element={
-              <ProtectedRoute>
-                <CheckoutPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route
-            path="/account"
-            element={
-              <ProtectedRoute>
-                <AccountPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedRoles={['ADMIN']}>
-                <AdminPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </main>
-      <Footer />
-    </div>
+    <Routes>
+      <Route element={<StorefrontLayout />}>
+        <Route path={ROUTES.HOME} element={<HomePage />} />
+        <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
+        <Route path={ROUTES.CONTACT} element={<ContactPage />} />
+        <Route path={ROUTES.CART} element={<CartPage />} />
+        <Route
+          path={ROUTES.ORDERS}
+          element={
+            <ProtectedRoute>
+              <OrdersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.CHECKOUT}
+          element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.ACCOUNT}
+          element={
+            <ProtectedRoute>
+              <AccountPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+
+      <Route
+        path={ROUTES.ADMIN}
+        element={
+          <ProtectedRoute allowedRoles={['ADMIN']}>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AdminPage />} />
+        <Route path="products" element={<AdminProductsPage />} />
+        <Route path="orders" element={<AdminOrdersPage />} />
+      </Route>
+
+      <Route element={<AuthLayout />}>
+        <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+        <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+      </Route>
+
+      <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
+    </Routes>
   )
 }
 

@@ -1,24 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ROUTES } from '../constants'
+import { usePageTitle } from '../hooks/usePageTitle'
 import { getBrands, getCategories, getProducts } from '../services/catalogService'
 
 const QUICK_ACTIONS = [
   {
     title: 'Cap nhat danh muc san pham',
     description: 'Kiem tra ten, icon va thu tu hien thi cac danh muc.',
-    to: '/products',
+    to: ROUTES.PRODUCTS,
     label: 'Mo catalog',
   },
   {
     title: 'Theo doi tro chuyen khach hang',
     description: 'Tong hop cau hoi, van chuyen, bao hanh va chuyen cho team phu trach.',
-    to: '/contact',
+    to: ROUTES.CONTACT,
     label: 'Mo ho tro',
   },
   {
     title: 'Kiem tra noi dung banner',
     description: 'Dam bao campaign tren trang chu dang dung thong diep va hinh anh.',
-    to: '/',
+    to: ROUTES.HOME,
     label: 'Xem storefront',
   },
 ]
@@ -30,6 +32,8 @@ const RECENT_NOTES = [
 ]
 
 function AdminPage() {
+  usePageTitle('Quản trị - Synex')
+
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [brands, setBrands] = useState([])
@@ -54,25 +58,32 @@ function AdminPage() {
   useEffect(() => {
     let mounted = true
 
-    setLoading(true)
-    Promise.all([getProducts(), getCategories(), getBrands()])
-      .then(([productData, categoryData, brandData]) => {
+    async function bootstrapDashboard() {
+      setLoading(true)
+      try {
+        const [productData, categoryData, brandData] = await Promise.all([
+          getProducts(),
+          getCategories(),
+          getBrands(),
+        ])
+
         if (!mounted) return
         setProducts(toObjectArray(productData))
         setCategories(toObjectArray(categoryData))
         setBrands(toObjectArray(brandData))
-      })
-      .catch(() => {
+      } catch {
         if (!mounted) return
         setProducts([])
         setCategories([])
         setBrands([])
-      })
-      .finally(() => {
+      } finally {
         if (mounted) {
           setLoading(false)
         }
-      })
+      }
+    }
+
+    bootstrapDashboard()
 
     return () => {
       mounted = false
@@ -90,93 +101,94 @@ function AdminPage() {
   const featuredProducts = useMemo(() => products.slice(0, 6), [products])
 
   return (
-    <div className="admin-page-shell">
-      <section className="admin-hero section-block">
-        <div>
-          <p className="admin-eyebrow">ADMIN CONTROL CENTER</p>
-          <h1>Bang dieu khien quan tri Synex</h1>
-          <p>
+    <div className="space-y-4">
+      <section className="grid gap-4 rounded-[28px] border border-border bg-white p-8 shadow-sm lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">ADMIN CONTROL CENTER</p>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">Bang dieu khien quan tri Synex</h1>
+          <p className="mt-3 text-slate-700">
             Theo doi van hanh cua he thong theo thoi gian thuc, cap nhat danh muc san pham va
             dieu phoi cac dau viec uu tien trong ngay.
           </p>
         </div>
-        <div className="admin-hero-actions">
-          <Link to="/products" className="primary-link">
-            Quan ly san pham
-          </Link>
-          <Link to="/" className="ghost-link">
-            Xem trang khach hang
+        <div className="flex flex-wrap gap-3">
+          <Link to={ROUTES.ADMIN_PRODUCTS} className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
+            Mo quan ly san pham
           </Link>
         </div>
       </section>
 
-      <section className="admin-kpi-grid">
-        <article className="admin-kpi-card">
-          <p>Tong san pham</p>
-          <strong>{loading ? '...' : products.length}</strong>
-          <span>Dang hoat dong tren storefront</span>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-600">Tong san pham</p>
+          <strong className="mt-2 block text-3xl font-bold text-ink">{loading ? '...' : products.length}</strong>
+          <span className="mt-2 block text-sm text-slate-600">Dang hoat dong tren storefront</span>
         </article>
-        <article className="admin-kpi-card">
-          <p>Danh muc</p>
-          <strong>{loading ? '...' : categories.length}</strong>
-          <span>Can duoc toi uu bo loc tim kiem</span>
+        <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-600">Danh muc</p>
+          <strong className="mt-2 block text-3xl font-bold text-ink">{loading ? '...' : categories.length}</strong>
+          <span className="mt-2 block text-sm text-slate-600">Can duoc toi uu bo loc tim kiem</span>
         </article>
-        <article className="admin-kpi-card">
-          <p>Thuong hieu</p>
-          <strong>{loading ? '...' : brands.length}</strong>
-          <span>Dang duoc lien ket voi catalog</span>
+        <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-slate-600">Thuong hieu</p>
+          <strong className="mt-2 block text-3xl font-bold text-ink">{loading ? '...' : brands.length}</strong>
+          <span className="mt-2 block text-sm text-slate-600">Dang duoc lien ket voi catalog</span>
         </article>
-        <article className="admin-kpi-card warn">
-          <p>Canh bao ton kho thap</p>
-          <strong>{loading ? '...' : lowStockCount}</strong>
-          <span>San pham con duoi 10 don vi</span>
+        <article className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <p className="text-sm font-medium text-amber-700">Canh bao ton kho thap</p>
+          <strong className="mt-2 block text-3xl font-bold text-amber-900">{loading ? '...' : lowStockCount}</strong>
+          <span className="mt-2 block text-sm text-amber-800">San pham con duoi 10 don vi</span>
         </article>
       </section>
 
-      <section className="admin-content-grid">
-        <article className="section-block admin-panel">
-          <h2>Quan ly nhanh</h2>
-          <div className="admin-action-list">
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-ink">Quan ly nhanh</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {QUICK_ACTIONS.map((action) => (
-              <div key={action.title} className="admin-action-item">
-                <h3>{action.title}</h3>
-                <p>{action.description}</p>
-                <Link to={action.to}>{action.label}</Link>
+              <div key={action.title} className="rounded-2xl border border-border bg-slate-50 p-4">
+                <h3 className="text-xl font-bold text-ink">{action.title}</h3>
+                <p className="mt-2 text-sm text-slate-700">{action.description}</p>
+                <Link to={action.to} className="mt-4 inline-flex rounded-full bg-slate-900 px-4 py-2 font-semibold text-white transition hover:bg-slate-800">
+                  {action.label}
+                </Link>
               </div>
             ))}
           </div>
         </article>
 
-        <article className="section-block admin-panel">
-          <h2>Ghi chu van hanh</h2>
-          <div className="admin-note-list">
+        <article className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-bold text-ink">Ghi chu van hanh</h2>
+          <div className="mt-4 space-y-3">
             {RECENT_NOTES.map((note) => (
-              <div key={note.title} className="admin-note-item">
-                <strong>{note.title}</strong>
-                <p>{note.detail}</p>
+              <div key={note.title} className="rounded-2xl border border-border bg-slate-50 p-4">
+                <strong className="block text-ink">{note.title}</strong>
+                <p className="mt-1 text-sm text-slate-700">{note.detail}</p>
               </div>
             ))}
           </div>
         </article>
       </section>
 
-      <section className="section-block admin-panel">
-        <div className="admin-table-head">
-          <h2>San pham noi bat can theo doi</h2>
-          <Link to="/products">Mo trang catalog</Link>
+      <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <h2 className="text-2xl font-bold text-ink">San pham noi bat can theo doi</h2>
+          <Link to={ROUTES.PRODUCTS} className="font-semibold text-sky-700">
+            Mo trang catalog
+          </Link>
         </div>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
+          <table className="min-w-full text-left">
             <thead>
-              <tr>
-                <th>Ten san pham</th>
-                <th>Danh muc</th>
-                <th>Gia</th>
-                <th>Ton kho</th>
-                <th>Trang thai</th>
+              <tr className="bg-slate-50 text-sm uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3">Ten san pham</th>
+                <th className="px-4 py-3">Danh muc</th>
+                <th className="px-4 py-3">Gia</th>
+                <th className="px-4 py-3">Ton kho</th>
+                <th className="px-4 py-3">Trang thai</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border">
               {featuredProducts.map((product, index) => {
                 const stock = Number(product?.stockQuantity || 0)
                 const category = safeText(
@@ -187,13 +199,18 @@ function AdminPage() {
                 const statusLabel = stock === 0 ? 'Het hang' : stock < 10 ? 'Sap het' : 'On dinh'
 
                 return (
-                  <tr key={product.id || product.productId || productName || `product-${index}`}>
-                    <td>{productName}</td>
-                    <td>{category}</td>
-                    <td>{Number(product.price || 0).toLocaleString('vi-VN')} đ</td>
-                    <td>{stock}</td>
-                    <td>
-                      <span className={`admin-status-chip ${stock < 10 ? 'is-warn' : 'is-ok'}`}>
+                  <tr key={product.id || product.productId || productName || `product-${index}`} className="align-top">
+                    <td className="px-4 py-4 text-ink">{productName}</td>
+                    <td className="px-4 py-4 text-slate-700">{category}</td>
+                    <td className="px-4 py-4 text-slate-700">{Number(product.price || 0).toLocaleString('vi-VN')} đ</td>
+                    <td className="px-4 py-4 text-slate-700">{stock}</td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={[
+                          'inline-flex rounded-full px-3 py-1 text-xs font-semibold',
+                          stock < 10 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800',
+                        ].join(' ')}
+                      >
                         {statusLabel}
                       </span>
                     </td>
@@ -202,7 +219,7 @@ function AdminPage() {
               })}
               {featuredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={5}>Chua co du lieu san pham de hien thi.</td>
+                  <td colSpan={5} className="px-4 py-6 text-center text-slate-600">Chua co du lieu san pham de hien thi.</td>
                 </tr>
               )}
             </tbody>

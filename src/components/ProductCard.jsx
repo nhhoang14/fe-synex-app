@@ -30,23 +30,32 @@ function ProductCard({ product }) {
   }
 
   return (
-    <article className="product-card">
-      <img src={getProductImage(product)} alt={getProductName(product)} />
-      <div className="product-content">
-        <h3>{getProductName(product)}</h3>
-        <p className="price">{formatCurrency(getProductPrice(product))}</p>
-        <div className="row">
+    <article className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+      <img
+        src={getProductImage(product)}
+        alt={getProductName(product)}
+        className="aspect-[4/3] w-full object-cover"
+      />
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <h3 className="text-xl font-bold text-ink">{getProductName(product)}</h3>
+        <p className="text-lg font-semibold text-slate-900">{formatCurrency(getProductPrice(product))}</p>
+        <div className="flex items-center gap-3">
           <input
             type="number"
             min={1}
             value={quantity}
             onChange={(event) => setQuantity(Number(event.target.value))}
+            className="w-20 rounded-2xl border border-border bg-white px-3 py-2 text-center outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
           />
-          <button type="button" onClick={handleAddToCart}>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            className="rounded-full bg-slate-900 px-4 py-2.5 font-semibold text-white transition hover:bg-slate-800"
+          >
             Thêm vào giỏ
           </button>
         </div>
-        {message && <p className="hint">{message}</p>}
+        {message && <p className="text-sm text-muted">{message}</p>}
       </div>
     </article>
   )

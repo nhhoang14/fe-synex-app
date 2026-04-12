@@ -7,29 +7,27 @@ import {
   register as registerApi,
 } from '../services/authService'
 import { getMyProfile } from '../services/userService'
+import { AUTH_STORAGE_KEYS, resolveRoleValue, USER_ROLES } from '../constants'
 
 const AuthContext = createContext(null)
-const TOKEN_KEY = 'synex_access_token'
 
 function normalizeRole(profile) {
-  return String(profile?.role || profile?.userRole || 'USER')
-    .replace('ROLE_', '')
-    .toUpperCase()
+  return resolveRoleValue(profile)
 }
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(localStorage.getItem(TOKEN_KEY) || '')
+  const [token, setToken] = useState(localStorage.getItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN) || '')
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const role = useMemo(() => normalizeRole(profile), [profile])
-  const isAdmin = role === 'ADMIN'
+  const isAdmin = role === USER_ROLES.ADMIN
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem(TOKEN_KEY, token)
+      localStorage.setItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN, token)
     } else {
-      localStorage.removeItem(TOKEN_KEY)
+      localStorage.removeItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN)
       setProfile(null)
     }
   }, [token])
@@ -133,7 +131,18 @@ export function AuthProvider({ children }) {
       logout,
       refreshToken,
     }),
-    [token, profile, loading, loadProfile, register, login, logout, refreshToken],
+    [
+      token,
+      profile,
+      role,
+      isAdmin,
+      loading,
+      loadProfile,
+      register,
+      login,
+      logout,
+      refreshToken,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
