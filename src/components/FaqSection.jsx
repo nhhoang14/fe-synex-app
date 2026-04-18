@@ -2,41 +2,41 @@ import { useMemo, useState } from 'react'
 
 const HOME_FAQS = [
 	{
-		question: 'Synex co giao hang toan quoc khong?',
+		question: 'Synex có giao hàng toàn quốc không?',
 		answer:
-			'Co. Chung toi giao hang tren toan quoc va ho tro kiem tra san pham truoc khi thanh toan voi nhieu khu vuc.',
+			'Có. Chúng tôi giao hàng trên toàn quốc và hỗ trợ kiểm tra sản phẩm trước khi thanh toán với nhiều khu vực.',
 	},
 	{
-		question: 'San pham co duoc bao hanh chinh hang khong?',
+		question: 'Sản phẩm có được bảo hành chính hãng không?',
 		answer:
-			'Tat ca san pham tai Synex deu co thong tin bao hanh ro rang. Ban co the theo doi tinh trang bao hanh ngay trong tai khoan.',
+			'Tất cả sản phẩm tại Synex đều có thông tin bảo hành rõ ràng. Bạn có thể theo dõi tình trạng bảo hành ngay trong tài khoản.',
 	},
 	{
-		question: 'Toi co the doi tra trong bao lau?',
+		question: 'Tôi có thể đổi trả trong bao lâu?',
 		answer:
-			'Chung toi ho tro doi tra theo chinh sach hien hanh trong 7 ngay neu san pham loi nha san xuat hoac giao sai model.',
+			'Chúng tôi hỗ trợ đổi trả theo chính sách hiện hành trong 7 ngày nếu sản phẩm lỗi nhà sản xuất hoặc giao sai model.',
 	},
 	{
-		question: 'Synex co uu dai cho doanh nghiep khong?',
+		question: 'Synex có ưu đãi cho doanh nghiệp không?',
 		answer:
-			'Co. Doi ngu B2B se tu van cau hinh, bao gia va ho tro xuat hoa don cho don hang doanh nghiep.',
+			'Có. Đội ngũ B2B sẽ tư vấn cấu hình, báo giá và hỗ trợ xuất hóa đơn cho đơn hàng doanh nghiệp.',
 	},
 ]
 
 const CONTACT_FAQS = [
 	{
-		question: 'Bao lau thi toi nhan duoc phan hoi?',
-		answer: 'Trong gio hanh chinh, doi ngu Synex thuong phan hoi trong khoang 30 phut.',
+		question: 'Bao lâu thì tôi nhận được phản hồi?',
+		answer: 'Trong giờ hành chính, đội ngũ Synex thường phản hồi trong khoảng 30 phút.',
 	},
 	{
-		question: 'Can chuan bi gi khi bao hanh?',
+		question: 'Cần chuẩn bị gì khi bảo hành?',
 		answer:
-			'Ban nen cung cap ma don hang hoac serial san pham kem mo ta loi de chung toi xu ly nhanh hon.',
+			'Bạn nên cung cấp mã đơn hàng hoặc serial sản phẩm kèm mô tả lỗi để chúng tôi xử lý nhanh hơn.',
 	},
 	{
-		question: 'Synex co ho tro tu van setup theo nhu cau?',
+		question: 'Synex có hỗ trợ tư vấn setup theo nhu cầu?',
 		answer:
-			'Co. Ban co the de lai nhu cau su dung, ngan sach va thoi gian trien khai de duoc tu van phu hop.',
+			'Có. Bạn có thể để lại nhu cầu sử dụng, ngân sách và thời gian triển khai để được tư vấn phù hợp.',
 	},
 ]
 
@@ -52,8 +52,11 @@ function FaqSection({ variant = 'home' }) {
 	}
 
 	return (
-		<section className="rounded-[28px] border border-border bg-white p-6 shadow-sm" aria-label="Frequently asked questions">
-			<h2 className="mb-4 text-2xl font-bold text-ink">Cau hoi thuong gap</h2>
+		<section
+			className="rounded-[28px] border border-border bg-white p-6 shadow-sm"
+			aria-label="Frequently asked questions"
+		>
+			<h2 className="mb-4 text-2xl font-bold text-ink">Câu hỏi thường gặp</h2>
 
 			<div className="space-y-3">
 				{items.map((item, index) => {
@@ -69,14 +72,18 @@ function FaqSection({ variant = 'home' }) {
 							>
 								<span className="font-medium text-ink">{item.question}</span>
 								<span
-									className={`grid h-8 w-8 place-items-center rounded-full bg-white text-xl font-semibold text-sky-600 shadow-sm transition-transform ${isOpen ? 'rotate-45' : ''}`}
+									className={`grid h-8 w-8 place-items-center rounded-full bg-white text-xl font-semibold text-sky-600 shadow-sm transition-transform ${
+										isOpen ? 'rotate-45' : ''
+									}`}
 									aria-hidden="true"
 								>
 									+
 								</span>
 							</button>
 
-							{isOpen ? <p className="px-4 pb-4 text-sm leading-7 text-muted">{item.answer}</p> : null}
+							{isOpen ? (
+								<p className="px-4 pb-4 text-sm leading-7 text-muted">{item.answer}</p>
+							) : null}
 						</article>
 					)
 				})}
