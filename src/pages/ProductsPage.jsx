@@ -25,6 +25,9 @@ function ProductsPage() {
   const [maxPrice, setMaxPrice] = useState('')
   const [sortBy, setSortBy] = useState('name-asc')
   const [feedback, setFeedback] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const productsPerPage = 12
 
   function toObjectArray(data) {
     if (!Array.isArray(data)) return []
@@ -133,6 +136,23 @@ function ProductsPage() {
     return map
   }, [products])
 
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage))
+  const startIndex = (currentPage - 1) * productsPerPage
+  const paginatedProducts = filteredProducts.slice(
+    startIndex,
+    startIndex + productsPerPage,
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [keywordFilter, categoryFilter, brandFilter, sortBy, onlyAvailable, maxPrice])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   async function handleAddToCart(product) {
     const productId = getProductId(product)
     if (!productId) {
@@ -161,8 +181,8 @@ function ProductsPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <aside className="space-y-5 rounded-[28px] border border-border bg-white p-6 shadow-sm">
+      <section className="grid items-start gap-4 lg:grid-cols-[280px_1fr]">
+        <aside className="filter-scrollbar sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto pr-2 space-y-5 rounded-[28px] border border-border bg-white p-6 shadow-sm">
           <div className="border-b border-border pb-3">
             <h3 className="text-2xl font-bold text-ink">Bộ lọc</h3>
           </div>
@@ -277,7 +297,7 @@ function ProductsPage() {
           {feedback && <p className="text-sm font-medium text-slate-600">{feedback}</p>}
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredProducts.map((product, index) => {
+            {paginatedProducts.map((product, index) => {
               const price = safePrice(product)
               const productId = getProductId(product)
               const productName = safeText(getProductName(product), 'Unnamed product')
@@ -325,6 +345,44 @@ function ProductsPage() {
               )
             })}
           </div>
+
+          {filteredProducts.length === 0 && (
+            <div className="rounded-3xl border border-dashed border-border px-6 py-10 text-center text-slate-500">
+              Không tìm thấy sản phẩm phù hợp.
+            </div>
+          )}
+
+          {filteredProducts.length > 0 && totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <div className="inline-flex items-center gap-3 rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30"
+                  aria-label="Trang trước"
+                >
+                  ‹
+                </button>
+
+                <div className="min-w-[64px] text-center text-lg text-slate-800">
+                  <span>{currentPage}</span>
+                  <span className="px-2 text-slate-400">/</span>
+                  <span>{totalPages}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-30"
+                  aria-label="Trang sau"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </section>
     </div>

@@ -38,3 +38,11 @@
     font: inherit;
   }
 }
+.filter-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.filter-scrollbar::-webkit-scrollbar {
+  display: none;
+}

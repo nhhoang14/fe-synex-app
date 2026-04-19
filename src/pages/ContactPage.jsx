@@ -36,18 +36,6 @@ function ContactPage() {
             và các giải pháp phù hợp cho cả cá nhân lẫn tổ chức.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="rounded-full bg-white px-5 py-3 font-semibold text-slate-950 transition hover:bg-slate-200"
-            >
-              Liên hệ ngay
-            </button>
-            <button
-              type="button"
-              className="rounded-full border border-white/30 px-5 py-3 font-semibold text-white transition hover:bg-white/10"
-            >
-              Xem câu hỏi thường gặp
-            </button>
           </div>
         </article>
 
