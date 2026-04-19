@@ -3,6 +3,7 @@ export const APP_NAME = 'Synex'
 export const ROUTES = {
   HOME: '/',
   PRODUCTS: '/products',
+  PRODUCT_DETAIL: '/products/:id',
   CONTACT: '/contact',
   CART: '/cart',
   CHECKOUT: '/checkout',

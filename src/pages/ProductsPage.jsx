@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useCart } from '../contexts/CartContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getBrands, getCategories, getProducts } from '../services/catalogService'
@@ -136,13 +136,13 @@ function ProductsPage() {
   async function handleAddToCart(product) {
     const productId = getProductId(product)
     if (!productId) {
-      setFeedback('Không tim thay product id')
+      setFeedback('Không tìm thấy product id')
       return
     }
 
     try {
       await addToCart(productId, 1)
-      setFeedback(`Da them ${getProductName(product)} vao gio hang`)
+      setFeedback(`Đã thêm ${getProductName(product)} vào giỏ hàng`)
     } catch (error) {
       setFeedback(error.message)
     }
@@ -152,7 +152,9 @@ function ProductsPage() {
     <div className="space-y-4">
       <section className="rounded-[28px] border border-border bg-slate-950 p-8 text-white shadow-sm">
         <div className="max-w-2xl">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Không gian sản phẩm Synex</h1>
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+            Không gian sản phẩm Synex
+          </h1>
           <p className="mt-3 text-base text-slate-200 sm:text-lg">
             Danh mục setup bàn làm việc, phụ kiện và thiết bị công nghệ được chọn lọc.
           </p>
@@ -181,10 +183,12 @@ function ProductsPage() {
                 <span className="font-medium">All</span>
                 <small className="text-slate-500">{products.length}</small>
               </button>
+
               {categories.slice(0, 9).map((category) => {
                 const value = safeText(category?.name || category?.categoryName || '')
                 const count = categoryCounts.get(value) || 0
                 const isActive = categoryFilter === value.toLowerCase()
+
                 return (
                   <button
                     key={category.id || value}
@@ -277,26 +281,42 @@ function ProductsPage() {
               const price = safePrice(product)
               const productId = getProductId(product)
               const productName = safeText(getProductName(product), 'Unnamed product')
+              const productLink = `/products/${productId}`
 
               return (
                 <article
-                  className="overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
+                  className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
                   key={productId || `${index}-${price}`}
                 >
-                  <div className="overflow-hidden">
-                    <img src={getProductImage(product)} alt={productName} className="aspect-[4/3] w-full object-cover" />
-                  </div>
+                  <Link to={productLink} className="flex h-full flex-col">
+                    <div className="overflow-hidden">
+                      <img
+                        src={getProductImage(product)}
+                        alt={productName}
+                        className="aspect-[4/3] w-full object-cover"
+                      />
+                    </div>
 
-                  <div className="flex flex-col gap-3 p-5">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">Sản phẩm Synex</p>
-                    <h3 className="text-xl font-bold text-ink">{productName}</h3>
-                    <p className="text-lg font-semibold text-slate-900">
-                      <strong>{formatCurrency(price)}</strong>
-                    </p>
+                    <div className="flex flex-1 flex-col p-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">
+                        Sản phẩm Synex
+                      </p>
+
+                      <h3 className="mt-3 min-h-[64px] text-xl font-bold leading-snug text-ink hover:text-sky-700">
+                        {productName}
+                      </h3>
+
+                      <p className="mt-3 text-lg font-semibold text-slate-900">
+                        <strong>{formatCurrency(price)}</strong>
+                      </p>
+                    </div>
+                  </Link>
+
+                  <div className="px-5 pb-5">
                     <button
                       type="button"
                       onClick={() => handleAddToCart(product)}
-                      className="mt-1 rounded-full bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800"
+                      className="w-full rounded-full bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800"
                     >
                       Thêm vào giỏ
                     </button>

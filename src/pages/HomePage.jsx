@@ -84,7 +84,7 @@ function HomePage() {
       const categoryResult = results[1]
 
       if (productResult.status === 'fulfilled' && Array.isArray(productResult.value)) {
-        setProducts(productResult.value.slice(0, 10))
+        setProducts(productResult.value.slice(0, 6))
       } else {
         setProducts([])
       }
