@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ROUTES } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getMyOrders } from '../services/orderService'
@@ -49,7 +47,7 @@ function AdminOrdersPage() {
         </p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2">
         <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-600">Tong don hang</p>
           <strong className="mt-2 block text-3xl font-bold text-ink">{loading ? '...' : orders.length}</strong>
@@ -57,12 +55,6 @@ function AdminOrdersPage() {
         <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-600">Don hien thi</p>
           <strong className="mt-2 block text-3xl font-bold text-ink">{loading ? '...' : latestOrders.length}</strong>
-        </article>
-        <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-600">Trang admin</p>
-          <Link to={ROUTES.ADMIN} className="mt-2 inline-flex font-semibold text-sky-700">
-            Quay lai dashboard
-          </Link>
         </article>
       </section>
 

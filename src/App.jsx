@@ -14,6 +14,7 @@ import OrdersPage from './pages/OrdersPage'
 import ProductDetailPage from './pages/ProductDetailPage'
 import ProductsPage from './pages/ProductsPage'
 import RegisterPage from './pages/RegisterPage'
+import WishlistPage from './pages/WishlistPage'
 import AdminLayout from './layouts/AdminLayout'
 import AuthLayout from './layouts/AuthLayout'
 import StorefrontLayout from './layouts/StorefrontLayout'
@@ -49,6 +50,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AccountPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.WISHLIST}
+          element={
+            <ProtectedRoute>
+              <WishlistPage />
             </ProtectedRoute>
           }
         />

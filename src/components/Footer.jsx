@@ -17,7 +17,10 @@ function Footer() {
         <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr_0.9fr]">
           <section className="space-y-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">{APP_NAME}</p>
+              <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.24em] text-sky-300">
+                <span className="material-symbols-outlined text-[18px] text-blue-500" aria-hidden="true">automation</span>
+                <span>{APP_NAME}</span>
+              </p>
               <h2 className="mt-3 text-3xl font-bold tracking-tight">Thiết kế gọn, vận hành rõ, mua sắm nhanh.</h2>
             </div>
             <p className="max-w-xl text-sm leading-6 text-slate-300 sm:text-base">

@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ROUTES } from '../constants'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProducts } from '../services/catalogService'
 import { formatCurrency, getProductName, getProductPrice } from '../utils/normalizers'
@@ -50,7 +48,7 @@ function AdminProductsPage() {
         </p>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2">
         <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-600">Tong san pham</p>
           <strong className="mt-2 block text-3xl font-bold text-ink">{loading ? '...' : products.length}</strong>
@@ -58,12 +56,6 @@ function AdminProductsPage() {
         <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
           <p className="text-sm font-medium text-slate-600">Tong ton kho</p>
           <strong className="mt-2 block text-3xl font-bold text-ink">{loading ? '...' : totalStock}</strong>
-        </article>
-        <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-600">Trang admin</p>
-          <Link to={ROUTES.ADMIN} className="mt-2 inline-flex font-semibold text-sky-700">
-            Quay lai dashboard
-          </Link>
         </article>
       </section>
 

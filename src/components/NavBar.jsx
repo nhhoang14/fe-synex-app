@@ -38,7 +38,6 @@ function NavBar() {
     let active = true
     getProducts()
       .then((data) => {
-        if (!active) return
         setProducts(Array.isArray(data) ? data : [])
       })
       .catch(() => {
@@ -84,7 +83,6 @@ function NavBar() {
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside)
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
@@ -167,8 +165,9 @@ function NavBar() {
 
   return (
     <header className="sticky top-0 z-30 grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
-      <Link to={ROUTES.HOME} className="ml-1 text-2xl font-bold tracking-tight text-ink no-underline font-heading">
-        {APP_NAME}
+      <Link to={ROUTES.HOME} className="ml-1 inline-flex items-center gap-2 text-2xl font-bold tracking-tight text-ink no-underline font-heading">
+        <span className="material-symbols-outlined text-[28px] text-blue-500" aria-hidden="true">automation</span>
+        <span>{APP_NAME}</span>
       </Link>
 
       <nav className="flex flex-wrap justify-center gap-2">
@@ -224,7 +223,7 @@ function NavBar() {
           )}
         </button>
 
-        <div className="user-menu-wrap" ref={menuRef}>
+        <div className="user-menu-wrap relative inline-flex items-center" ref={menuRef}>
           <button
             type="button"
             className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-ink transition hover:-translate-y-0.5 hover:shadow-soft"
@@ -237,37 +236,49 @@ function NavBar() {
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 top-[calc(100%+8px)] z-40 grid min-w-40 gap-1 rounded-2xl border border-border bg-white p-1.5 shadow-soft">
+            <div className="absolute right-[-24px] top-[calc(100%+8px)] z-40 grid min-w-40 gap-1 rounded-2xl border border-border bg-white p-1.5 shadow-soft">
               {isAuthenticated ? (
                 <>
                   {isAdmin && (
                     <Link
                       to={ROUTES.ADMIN}
                       onClick={() => setMenuOpen(false)}
-                      className="rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
+                      className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                     >
-                      Quan tri
+                      <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">admin_panel_settings</span>
+                      Quản trị
                     </Link>
                   )}
                   <Link
                     to={ROUTES.ACCOUNT}
                     onClick={() => setMenuOpen(false)}
-                    className="rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
+                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">person</span>
                     Hồ sơ
                   </Link>
                   <Link
                     to={ROUTES.ORDERS}
                     onClick={() => setMenuOpen(false)}
-                    className="rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
+                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">receipt_long</span>
                     Đơn hàng
+                  </Link>
+                  <Link
+                    to={ROUTES.WISHLIST}
+                    onClick={() => setMenuOpen(false)}
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
+                  >
+                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">favorite</span>
+                    Đã thích
                   </Link>
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
+                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">logout</span>
                     Đăng xuất
                   </button>
                 </>
@@ -276,15 +287,17 @@ function NavBar() {
                   <Link
                     to={ROUTES.LOGIN}
                     onClick={() => setMenuOpen(false)}
-                    className="rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
+                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">login</span>
                     Đăng nhập
                   </Link>
                   <Link
                     to={ROUTES.REGISTER}
                     onClick={() => setMenuOpen(false)}
-                    className="rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
+                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
+                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">app_registration</span>
                     Đăng ký
                   </Link>
                 </>

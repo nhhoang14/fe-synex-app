@@ -11,6 +11,7 @@ export const ROUTES = {
   REGISTER: '/register',
   ACCOUNT: '/account',
   ORDERS: '/orders',
+  WISHLIST: '/wishlist',
   ADMIN: '/admin',
   ADMIN_PRODUCTS: '/admin/products',
   ADMIN_ORDERS: '/admin/orders',
