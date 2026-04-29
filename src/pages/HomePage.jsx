@@ -84,7 +84,7 @@ function HomePage() {
       const categoryResult = results[1]
 
       if (productResult.status === 'fulfilled' && Array.isArray(productResult.value)) {
-        setProducts(productResult.value.slice(0, 6))
+        setProducts(productResult.value.slice(0, 10))
       } else {
         setProducts([])
       }
@@ -125,7 +125,7 @@ function HomePage() {
   return (
     <div className="pb-10">
       <section
-        className="relative -mt-[20px] left-1/2 right-1/2 ml-[-50vw] mr-[-50vw] w-screen min-h-[420px] bg-cover bg-center bg-no-repeat"
+        className="relative -mt-[20px] left-1/2 right-1/2 ml-[-50vw] mr-[-50vw] w-screen min-h-[500px] bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: `url(${bannerImage})`,
         }}
@@ -238,11 +238,16 @@ function HomePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1200px] rounded-[28px] border border-border bg-white p-6 shadow-sm">
+      <section className="mx-auto max-w-[1400px] px-2">
         <h2 className="mb-4 text-2xl font-bold text-ink">Sản phẩm nổi bật</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((product) => (
-            <ProductCard key={product.id || product.productId} product={product} />
+            <ProductCard
+              key={product.id || product.productId}
+              product={product}
+              compact
+            />
           ))}
         </div>
       </section>
@@ -254,17 +259,17 @@ function HomePage() {
             "linear-gradient(90deg, rgba(7,10,16,0.92) 0%, rgba(7,10,16,0.82) 38%, rgba(7,10,16,0.55) 100%), url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1600&q=80')",
         }}
       >
-        <div className="min-h-[420px] px-7 py-10 sm:px-10 sm:py-14 lg:min-h-[520px] lg:px-14 lg:py-16">
+        <div className="flex min-h-[420px] items-center px-7 py-10 sm:px-10 sm:py-14 lg:min-h-[520px] lg:px-14 lg:py-16">
           <div className="max-w-[760px]">
             <h2 className="text-4xl font-bold leading-tight text-white sm:text-5xl lg:text-6xl">
               Cộng đồng người dùng
             </h2>
 
             <p className="mt-6 max-w-[900px] text-lg leading-9 text-white/90 sm:text-xl">
-                  Chia sẻ góc setup, kinh nghiệm sử dụng và cập nhật ưu đãi mới nhất từ Synex.
+              Chia sẻ góc setup, kinh nghiệm sử dụng và cập nhật ưu đãi mới nhất từ Synex.
             </p>
 
-            <div className="mt-10 flex flex-wrap gap-4">
+            <div className="mt-6 flex flex-wrap gap-4">
               <a
                 href="#"
                 className="inline-flex min-w-[160px] items-center justify-center rounded-full border-2 border-white px-8 py-4 text-lg font-semibold text-white transition hover:bg-white hover:text-slate-900"

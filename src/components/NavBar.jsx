@@ -3,7 +3,6 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { APP_NAME, NAV_ITEMS, ROUTES } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
 import { useCart } from '../contexts/CartContext'
-import RightOverlayPanel from './RightOverlayPanel'
 import { getProducts } from '../services/catalogService'
 import {
   formatCurrency,
@@ -14,19 +13,24 @@ import {
   getProductName,
   getProductPrice,
 } from '../utils/normalizers'
+import RightOverlayPanel from './RightOverlayPanel'
 
 function NavBar() {
   const { isAuthenticated, isAdmin, logout } = useAuth()
   const { items, totalItems, totalAmount, fetchCart, increase, decrease, remove } = useCart()
+
   const navigate = useNavigate()
   const location = useLocation()
+
   const [menuOpen, setMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [cartOpen, setCartOpen] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [products, setProducts] = useState([])
   const [cartMessage, setCartMessage] = useState('')
+
   const menuRef = useRef(null)
+
   const queryKeyword = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return params.get('q') || ''
@@ -36,8 +40,10 @@ function NavBar() {
     if (!searchOpen) return
 
     let active = true
+
     getProducts()
       .then((data) => {
+        if (!active) return
         setProducts(Array.isArray(data) ? data : [])
       })
       .catch(() => {
@@ -51,9 +57,7 @@ function NavBar() {
   }, [searchOpen])
 
   useEffect(() => {
-    if (!cartOpen) return
-
-    if (!isAuthenticated) return
+    if (!cartOpen || !isAuthenticated) return
 
     fetchCart().catch(() => {
       setCartMessage('Không tải được giỏ hàng.')
@@ -71,6 +75,7 @@ function NavBar() {
     }
 
     window.addEventListener('keydown', handleEscape)
+
     return () => {
       window.removeEventListener('keydown', handleEscape)
     }
@@ -82,6 +87,8 @@ function NavBar() {
         setMenuOpen(false)
       }
     }
+
+    document.addEventListener('mousedown', handleClickOutside)
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
@@ -95,8 +102,9 @@ function NavBar() {
 
   function handleSearchSubmit(event) {
     event.preventDefault()
-    const params = new URLSearchParams()
+
     const keyword = searchKeyword.trim()
+    const params = new URLSearchParams()
 
     if (keyword) {
       params.set('q', keyword)
@@ -142,6 +150,7 @@ function NavBar() {
 
   const filteredProducts = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase()
+
     if (!keyword) return products.slice(0, 6)
 
     return products
@@ -152,6 +161,7 @@ function NavBar() {
   function handleSelectProduct(product) {
     const productName = getProductName(product)
     const params = new URLSearchParams()
+
     params.set('q', productName)
 
     navigate({
@@ -165,8 +175,16 @@ function NavBar() {
 
   return (
     <header className="sticky top-0 z-30 grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
-      <Link to={ROUTES.HOME} className="ml-1 inline-flex items-center gap-2 text-2xl font-bold tracking-tight text-ink no-underline font-heading">
-        <span className="material-symbols-outlined text-[28px] text-blue-500" aria-hidden="true">automation</span>
+      <Link
+        to={ROUTES.HOME}
+        className="ml-1 inline-flex items-center gap-2 text-2xl font-bold tracking-tight text-ink no-underline font-heading"
+      >
+        <span
+          className="material-symbols-outlined text-[28px] text-blue-500"
+          aria-hidden="true"
+        >
+          automation
+        </span>
         <span>{APP_NAME}</span>
       </Link>
 
@@ -213,9 +231,8 @@ function NavBar() {
             setCartOpen(true)
           }}
         >
-          <span className="material-symbols-outlined">
-            shopping_bag
-          </span>
+          <span className="material-symbols-outlined">shopping_bag</span>
+
           {totalItems > 0 && (
             <span className="absolute -right-1 -top-1 grid min-h-[18px] min-w-[18px] place-items-center rounded-full border-2 border-white bg-red-500 px-1 text-[0.7rem] font-bold text-white">
               {totalItems}
@@ -230,9 +247,7 @@ function NavBar() {
             aria-label="Tài khoản"
             onClick={() => setMenuOpen((prev) => !prev)}
           >
-            <span className="material-symbols-outlined">
-              person
-            </span>
+            <span className="material-symbols-outlined">person</span>
           </button>
 
           {menuOpen && (
@@ -245,40 +260,69 @@ function NavBar() {
                       onClick={() => setMenuOpen(false)}
                       className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">admin_panel_settings</span>
+                      <span
+                        className="material-symbols-outlined text-[20px] text-blue-500"
+                        aria-hidden="true"
+                      >
+                        admin_panel_settings
+                      </span>
                       Quản trị
                     </Link>
                   )}
+
                   <Link
                     to={ROUTES.ACCOUNT}
                     onClick={() => setMenuOpen(false)}
                     className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
-                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">person</span>
+                    <span
+                      className="material-symbols-outlined text-[20px] text-blue-500"
+                      aria-hidden="true"
+                    >
+                      person
+                    </span>
                     Hồ sơ
                   </Link>
+
                   <Link
                     to={ROUTES.ORDERS}
                     onClick={() => setMenuOpen(false)}
                     className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
-                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">receipt_long</span>
+                    <span
+                      className="material-symbols-outlined text-[20px] text-blue-500"
+                      aria-hidden="true"
+                    >
+                      receipt_long
+                    </span>
                     Đơn hàng
                   </Link>
+
                   <Link
                     to={ROUTES.WISHLIST}
                     onClick={() => setMenuOpen(false)}
                     className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
-                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">favorite</span>
+                    <span
+                      className="material-symbols-outlined text-[20px] text-blue-500"
+                      aria-hidden="true"
+                    >
+                      favorite
+                    </span>
                     Đã thích
                   </Link>
+
                   <button
                     type="button"
                     onClick={handleLogout}
                     className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
-                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">logout</span>
+                    <span
+                      className="material-symbols-outlined text-[20px] text-blue-500"
+                      aria-hidden="true"
+                    >
+                      logout
+                    </span>
                     Đăng xuất
                   </button>
                 </>
@@ -289,15 +333,26 @@ function NavBar() {
                     onClick={() => setMenuOpen(false)}
                     className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
-                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">login</span>
+                    <span
+                      className="material-symbols-outlined text-[20px] text-blue-500"
+                      aria-hidden="true"
+                    >
+                      login
+                    </span>
                     Đăng nhập
                   </Link>
+
                   <Link
                     to={ROUTES.REGISTER}
                     onClick={() => setMenuOpen(false)}
                     className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
                   >
-                    <span className="material-symbols-outlined text-[20px] text-blue-500" aria-hidden="true">app_registration</span>
+                    <span
+                      className="material-symbols-outlined text-[20px] text-blue-500"
+                      aria-hidden="true"
+                    >
+                      app_registration
+                    </span>
                     Đăng ký
                   </Link>
                 </>
@@ -315,6 +370,7 @@ function NavBar() {
         <form className="border-b border-border pb-4" onSubmit={handleSearchSubmit}>
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-slate-500">search</span>
+
             <input
               autoFocus
               value={searchKeyword}
@@ -322,13 +378,18 @@ function NavBar() {
               placeholder="Tìm sản phẩm bạn cần"
               className="w-full border-none bg-transparent text-lg font-medium text-ink outline-none placeholder:text-slate-400"
             />
-            <button type="button" onClick={() => setSearchKeyword('')} className="text-sm font-medium text-slate-500 hover:text-slate-700">
+
+            <button
+              type="button"
+              onClick={() => setSearchKeyword('')}
+              className="text-sm font-medium text-slate-500 hover:text-slate-700"
+            >
               Xóa
             </button>
           </div>
         </form>
 
-        <div className="mt-5 mb-5 flex items-center gap-6 border-b border-border pb-3">
+        <div className="mb-5 mt-5 flex items-center gap-6 border-b border-border pb-3">
           <p className="text-base font-bold text-ink">Sản phẩm</p>
           <p className="text-base font-semibold text-slate-300">Gợi ý</p>
           <p className="text-base font-semibold text-slate-300">Bài đăng trên blog</p>
@@ -353,10 +414,15 @@ function NavBar() {
                     alt={getProductName(product)}
                     className="h-[88px] w-[88px] rounded-xl object-cover"
                   />
+
                   <div>
                     <p className="text-sm text-slate-500">Sản phẩm</p>
-                    <p className="mt-1 text-xl font-bold text-ink">{getProductName(product)}</p>
-                    <p className="mt-1 text-xl font-semibold text-red-500">{formatCurrency(getProductPrice(product))}</p>
+                    <p className="mt-1 text-xl font-bold text-ink">
+                      {getProductName(product)}
+                    </p>
+                    <p className="mt-1 text-xl font-semibold text-red-500">
+                      {formatCurrency(getProductPrice(product))}
+                    </p>
                   </div>
                 </button>
               )
@@ -376,6 +442,7 @@ function NavBar() {
               <span>Tổng cộng</span>
               <strong>{formatCurrency(totalAmount)}</strong>
             </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <Link
                 to={ROUTES.CART}
@@ -384,6 +451,7 @@ function NavBar() {
               >
                 Xem giỏ hàng
               </Link>
+
               <Link
                 to={isAuthenticated && items.length > 0 ? ROUTES.CHECKOUT : ROUTES.LOGIN}
                 onClick={() => setCartOpen(false)}
@@ -404,6 +472,7 @@ function NavBar() {
         {!isAuthenticated ? (
           <div className="rounded-2xl border border-border bg-slate-50 p-4">
             <p className="text-slate-700">Đăng nhập để xem và quản lý giỏ hàng.</p>
+
             <Link
               to={ROUTES.LOGIN}
               onClick={() => setCartOpen(false)}
@@ -423,7 +492,10 @@ function NavBar() {
               const price = getProductPrice(product)
 
               return (
-                <article key={item.id || `${productId}-${quantity}`} className="grid grid-cols-[84px_1fr_auto] gap-4 rounded-2xl border border-border bg-slate-50 p-3">
+                <article
+                  key={item.id || `${productId}-${quantity}`}
+                  className="grid grid-cols-[84px_1fr_auto] gap-4 rounded-2xl border border-border bg-slate-50 p-3"
+                >
                   <img
                     src={getProductImage(product)}
                     alt={getProductName(product)}
@@ -433,10 +505,27 @@ function NavBar() {
                   <div>
                     <h3 className="font-semibold text-ink">{getProductName(product)}</h3>
                     <p className="mt-1 text-sm text-slate-700">{formatCurrency(price)}</p>
+
                     <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-white px-2 py-1">
-                      <button type="button" onClick={() => handleDecrease(productId)} className="grid h-7 w-7 place-items-center rounded-full hover:bg-slate-100">-</button>
-                      <span className="min-w-6 text-center text-sm font-semibold">{quantity}</span>
-                      <button type="button" onClick={() => handleIncrease(productId)} className="grid h-7 w-7 place-items-center rounded-full hover:bg-slate-100">+</button>
+                      <button
+                        type="button"
+                        onClick={() => handleDecrease(productId)}
+                        className="grid h-7 w-7 place-items-center rounded-full hover:bg-slate-100"
+                      >
+                        -
+                      </button>
+
+                      <span className="min-w-6 text-center text-sm font-semibold">
+                        {quantity}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => handleIncrease(productId)}
+                        className="grid h-7 w-7 place-items-center rounded-full hover:bg-slate-100"
+                      >
+                        +
+                      </button>
                     </div>
                   </div>
 

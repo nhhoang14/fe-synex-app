@@ -49,9 +49,9 @@ function AccountPage() {
     setProfile(nextProfile)
 
     setProfileForm({
-      fullName: nextProfile.fullName || nextProfile.name || '',
+      fullName: nextProfile.fullName || nextProfile.name || nextProfile.username || '',
       email: nextProfile.email || '',
-      phoneNumber: nextProfile.phoneNumber || '',
+      phoneNumber: nextProfile.phoneNumber || nextProfile.phone || '',
     })
   }, [])
 
@@ -67,22 +67,29 @@ function AccountPage() {
 
     async function bootstrap() {
       try {
-        const profile = await loadProfile()
+        const nextProfile = await loadProfile()
         if (!active) return
-        syncProfileForm(profile)
-
-        const [addressData, orderData] = await Promise.all([
-          getMyAddresses(token),
-          getMyOrders(token),
-        ])
-
-        if (!active) return
-        setAddresses(Array.isArray(addressData) ? addressData : [])
-        setOrders(Array.isArray(orderData) ? orderData : [])
+        syncProfileForm(nextProfile)
       } catch (error) {
         if (active) {
-          setMessage(error.message || 'Không tai được du lieu tai khoan')
+          setMessage(error.message || 'Không tải được thông tin tài khoản')
         }
+      }
+
+      try {
+        const addressData = await getMyAddresses(token)
+        if (!active) return
+        setAddresses(Array.isArray(addressData) ? addressData : [])
+      } catch {
+        if (active) setAddresses([])
+      }
+
+      try {
+        const orderData = await getMyOrders(token)
+        if (!active) return
+        setOrders(Array.isArray(orderData) ? orderData : [])
+      } catch {
+        if (active) setOrders([])
       }
     }
 
@@ -94,27 +101,29 @@ function AccountPage() {
   }, [token, loadProfile, syncProfileForm])
 
   const recentOrdersCount = useMemo(() => orders.slice(0, 5).length, [orders])
+
   const defaultAddress = useMemo(
     () => addresses.find((address) => address.isDefault),
     [addresses],
   )
+
   const profileInitial = useMemo(
-    () => (profileForm.fullName || 'S').trim().charAt(0).toUpperCase(),
-    [profileForm.fullName],
+    () => (profileForm.fullName || profileForm.email || 'S').trim().charAt(0).toUpperCase(),
+    [profileForm.fullName, profileForm.email],
   )
+
   const memberSince = useMemo(() => {
-    if (!profile?.createdAt) return 'Chưa cap nhat'
+    if (!profile?.createdAt) return 'Chưa cập nhật'
     const date = new Date(profile.createdAt)
-    if (Number.isNaN(date.getTime())) return 'Chưa cap nhat'
+    if (Number.isNaN(date.getTime())) return 'Chưa cập nhật'
     return date.toLocaleDateString('vi-VN')
   }, [profile])
-  const accountRole = useMemo(
-    () => resolveRoleValue(profile),
-    [profile],
-  )
+
+  const accountRole = useMemo(() => resolveRoleValue(profile), [profile])
 
   async function handleUpdateProfile(event) {
     event.preventDefault()
+    setMessage('')
 
     try {
       await updateMyProfile(token, {
@@ -122,19 +131,21 @@ function AccountPage() {
         email: profileForm.email,
         phoneNumber: profileForm.phoneNumber,
       })
-      const profile = await loadProfile()
-      syncProfileForm(profile)
+
+      const nextProfile = await loadProfile()
+      syncProfileForm(nextProfile)
       setMessage('Đã cập nhật thông tin cá nhân')
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message || 'Cập nhật thông tin thất bại')
     }
   }
 
   async function handleChangePassword(event) {
     event.preventDefault()
+    setMessage('')
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setMessage('Mật khẩu moi va xac nhan mat khau khong khop')
+      setMessage('Mật khẩu mới và xác nhận mật khẩu không khớp')
       return
     }
 
@@ -143,19 +154,22 @@ function AccountPage() {
         oldPassword: passwordForm.oldPassword,
         newPassword: passwordForm.newPassword,
       })
+
       setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' })
       setMessage('Đổi mật khẩu thành công')
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message || 'Đổi mật khẩu thất bại')
     }
   }
 
   async function handleCreateAddress(event) {
     event.preventDefault()
+    setMessage('')
 
     try {
       await createAddress(token, addressForm)
       await reloadAddresses()
+
       setAddressForm((prev) => ({
         ...prev,
         fullName: '',
@@ -164,29 +178,34 @@ function AccountPage() {
         district: '',
         city: '',
       }))
+
       setMessage('Đã thêm địa chỉ giao hàng')
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message || 'Thêm địa chỉ thất bại')
     }
   }
 
   async function handleSetDefault(addressId) {
+    setMessage('')
+
     try {
       await setDefaultAddress(token, addressId)
       await reloadAddresses()
-      setMessage('Da cap nhat dia chi mặc định')
+      setMessage('Đã cập nhật địa chỉ mặc định')
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message || 'Cập nhật địa chỉ mặc định thất bại')
     }
   }
 
   async function handleDeleteAddress(addressId) {
+    setMessage('')
+
     try {
       await deleteAddress(token, addressId)
       await reloadAddresses()
       setMessage('Đã xóa địa chỉ')
     } catch (error) {
-      setMessage(error.message)
+      setMessage(error.message || 'Xóa địa chỉ thất bại')
     }
   }
 
@@ -194,68 +213,106 @@ function AccountPage() {
     <div className="space-y-4">
       <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <article className="flex gap-5 rounded-[28px] border border-border bg-white p-8 shadow-sm">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-slate-900 text-3xl font-bold text-white">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-900 text-3xl font-bold text-white">
             {profileInitial}
           </div>
+
           <div className="min-w-0">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">THONG TIN NGUOI DUNG</p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">{profileForm.fullName || 'Người dùng Synex'}</h1>
-            <p className="mt-2 text-slate-700">{profileForm.email || 'Cập nhật email de nhan thong bao don hang moi nhat.'}</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">
+              THÔNG TIN NGƯỜI DÙNG
+            </p>
+
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">
+              {profileForm.fullName || 'Người dùng Synex'}
+            </h1>
+
+            <p className="mt-2 text-slate-700">
+              {profileForm.email || 'Cập nhật email để nhận thông báo đơn hàng mới nhất.'}
+            </p>
+
             <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">Thanh vien tu {memberSince}</span>
-              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">{addresses.length} dia chi</span>
-              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">{recentOrdersCount} don gan day</span>
+              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
+                Thành viên từ {memberSince}
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
+                {addresses.length} địa chỉ
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
+                {recentOrdersCount} đơn gần đây
+              </span>
             </div>
           </div>
         </article>
 
         <article className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
-            <strong className="block text-3xl font-bold text-ink">{String(addresses.length).padStart(2, '0')}</strong>
-            <span className="mt-2 block text-sm text-slate-600">Dia chi nhan hang</span>
+            <strong className="block text-3xl font-bold text-ink">
+              {String(addresses.length).padStart(2, '0')}
+            </strong>
+            <span className="mt-2 block text-sm text-slate-600">Địa chỉ nhận hàng</span>
           </div>
+
           <div className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
-            <strong className="block text-3xl font-bold text-ink">{String(recentOrdersCount).padStart(2, '0')}</strong>
-            <span className="mt-2 block text-sm text-slate-600">Don hang gan day</span>
+            <strong className="block text-3xl font-bold text-ink">
+              {String(recentOrdersCount).padStart(2, '0')}
+            </strong>
+            <span className="mt-2 block text-sm text-slate-600">Đơn hàng gần đây</span>
           </div>
-          <div className="rounded-3xl border border-slate-900 bg-slate-950 p-5 shadow-sm text-white">
+
+          <div className="rounded-3xl border border-slate-900 bg-slate-950 p-5 text-white shadow-sm">
             <strong className="block text-2xl font-bold">{accountRole}</strong>
-            <span className="mt-2 block text-sm text-slate-300">Vai tro tai khoan</span>
+            <span className="mt-2 block text-sm text-slate-300">Vai trò tài khoản</span>
           </div>
+
           <div className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
-            <strong className="block text-3xl font-bold text-ink">{defaultAddress ? 'DAY DU' : 'CO BAN'}</strong>
-            <span className="mt-2 block text-sm text-slate-600">Muc do ho so</span>
+            <strong className="block text-3xl font-bold text-ink">
+              {defaultAddress ? 'ĐẦY ĐỦ' : 'CƠ BẢN'}
+            </strong>
+            <span className="mt-2 block text-sm text-slate-600">Mức độ hồ sơ</span>
           </div>
         </article>
       </section>
 
-      {message && <p className="text-sm font-medium text-slate-600">{message}</p>}
+      {message && (
+        <p className="rounded-2xl border border-border bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
+          {message}
+        </p>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-[1fr_420px]">
         <div className="space-y-4">
-          <form className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm" onSubmit={handleUpdateProfile}>
-            <h2 className="text-2xl font-bold text-ink">Thong tin ca nhan</h2>
-            <p className="text-slate-700">Cập nhật thong tin lien he de giao hang va hỗ trợ nhanh hon.</p>
+          <form
+            className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm"
+            onSubmit={handleUpdateProfile}
+          >
+            <h2 className="text-2xl font-bold text-ink">Thông tin cá nhân</h2>
+            <p className="text-slate-700">
+              Cập nhật thông tin liên hệ để giao hàng và hỗ trợ nhanh hơn.
+            </p>
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block space-y-2" htmlFor="fullName">
-                <span className="text-sm font-medium text-ink">Ho va ten</span>
+                <span className="text-sm font-medium text-ink">Họ và tên</span>
                 <input
                   id="fullName"
                   value={profileForm.fullName}
-                  onChange={(event) => setProfileForm((prev) => ({ ...prev, fullName: event.target.value }))}
-                  placeholder="Nhap ho va ten"
+                  onChange={(event) =>
+                    setProfileForm((prev) => ({ ...prev, fullName: event.target.value }))
+                  }
+                  placeholder="Nhập họ và tên"
                   className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
 
               <label className="block space-y-2" htmlFor="phoneNumber">
-                <span className="text-sm font-medium text-ink">So dien thoai</span>
+                <span className="text-sm font-medium text-ink">Số điện thoại</span>
                 <input
                   id="phoneNumber"
                   value={profileForm.phoneNumber}
-                  onChange={(event) => setProfileForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
-                  placeholder="Nhap so dien thoai"
+                  onChange={(event) =>
+                    setProfileForm((prev) => ({ ...prev, phoneNumber: event.target.value }))
+                  }
+                  placeholder="Nhập số điện thoại"
                   className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
@@ -267,28 +324,40 @@ function AccountPage() {
                 id="email"
                 type="email"
                 value={profileForm.email}
-                onChange={(event) => setProfileForm((prev) => ({ ...prev, email: event.target.value }))}
-                placeholder="Nhap email"
+                onChange={(event) =>
+                  setProfileForm((prev) => ({ ...prev, email: event.target.value }))
+                }
+                placeholder="Nhập email"
                 className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               />
             </label>
 
-            <button type="submit" className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
-              Luu thong tin
+            <button
+              type="submit"
+              className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
+            >
+              Lưu thông tin
             </button>
           </form>
 
-          <form className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm" onSubmit={handleChangePassword}>
+          <form
+            className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm"
+            onSubmit={handleChangePassword}
+          >
             <h2 className="text-2xl font-bold text-ink">Thay đổi mật khẩu</h2>
-            <p className="text-slate-700">Khuyến nghị đặt mật khẩu tối thiểu 8 ký tự và bao gồm chữ + số.</p>
+            <p className="text-slate-700">
+              Khuyến nghị đặt mật khẩu tối thiểu 8 ký tự và bao gồm chữ + số.
+            </p>
 
             <label className="block space-y-2" htmlFor="oldPassword">
-              <span className="text-sm font-medium text-ink">Mật khẩu hien tai</span>
+              <span className="text-sm font-medium text-ink">Mật khẩu hiện tại</span>
               <input
                 id="oldPassword"
                 type="password"
                 value={passwordForm.oldPassword}
-                onChange={(event) => setPasswordForm((prev) => ({ ...prev, oldPassword: event.target.value }))}
+                onChange={(event) =>
+                  setPasswordForm((prev) => ({ ...prev, oldPassword: event.target.value }))
+                }
                 required
                 className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               />
@@ -296,12 +365,14 @@ function AccountPage() {
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block space-y-2" htmlFor="newPassword">
-                <span className="text-sm font-medium text-ink">Mật khẩu moi</span>
+                <span className="text-sm font-medium text-ink">Mật khẩu mới</span>
                 <input
                   id="newPassword"
                   type="password"
                   value={passwordForm.newPassword}
-                  onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+                  onChange={(event) =>
+                    setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))
+                  }
                   required
                   className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
@@ -313,27 +384,33 @@ function AccountPage() {
                   id="confirmPassword"
                   type="password"
                   value={passwordForm.confirmPassword}
-                  onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+                  onChange={(event) =>
+                    setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))
+                  }
                   required
                   className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
               </label>
             </div>
 
-            <button type="submit" className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
-              Cập nhật mat khau
+            <button
+              type="submit"
+              className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
+            >
+              Cập nhật mật khẩu
             </button>
           </form>
-
         </div>
 
         <aside className="space-y-4">
           <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold text-ink">Dia chi nhan hang</h2>
-            <p className="mt-2 text-slate-700">Quan ly dia chi giao hang de dat don nhanh hon.</p>
+            <h2 className="text-2xl font-bold text-ink">Địa chỉ nhận hàng</h2>
+            <p className="mt-2 text-slate-700">
+              Quản lý địa chỉ giao hàng để đặt đơn nhanh hơn.
+            </p>
 
             {addresses.length === 0 ? (
-              <p className="mt-4 text-slate-600">Chưa co dia chi nao tu backend.</p>
+              <p className="mt-4 text-slate-600">Chưa có địa chỉ nào từ backend.</p>
             ) : (
               <div className="mt-4 space-y-3">
                 {addresses.map((address) => (
@@ -341,7 +418,10 @@ function AccountPage() {
                     <p className="font-semibold text-ink">{address.fullName}</p>
                     <p className="mt-1 text-sm text-slate-700">{getAddressLabel(address)}</p>
                     <p className="mt-1 text-sm text-slate-700">{address.phoneNumber}</p>
-                    <p className="mt-1 text-sm text-slate-500">{address.isDefault ? 'Mac dinh' : 'Dia chi phu'}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {address.isDefault ? 'Mặc định' : 'Địa chỉ phụ'}
+                    </p>
+
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -350,6 +430,7 @@ function AccountPage() {
                       >
                         Đặt mặc định
                       </button>
+
                       <button
                         type="button"
                         onClick={() => handleDeleteAddress(address.id)}
@@ -366,21 +447,26 @@ function AccountPage() {
             <form className="mt-6 space-y-4" onSubmit={handleCreateAddress}>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block space-y-2" htmlFor="addressFullName">
-                  <span className="text-sm font-medium text-ink">Ho ten nguoi nhan</span>
+                  <span className="text-sm font-medium text-ink">Họ tên người nhận</span>
                   <input
                     id="addressFullName"
                     value={addressForm.fullName}
-                    onChange={(event) => setAddressForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                    onChange={(event) =>
+                      setAddressForm((prev) => ({ ...prev, fullName: event.target.value }))
+                    }
                     required
                     className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
+
                 <label className="block space-y-2" htmlFor="addressPhone">
-                  <span className="text-sm font-medium text-ink">So dien thoai</span>
+                  <span className="text-sm font-medium text-ink">Số điện thoại</span>
                   <input
                     id="addressPhone"
                     value={addressForm.phoneNumber}
-                    onChange={(event) => setAddressForm((prev) => ({ ...prev, phoneNumber: event.target.value }))}
+                    onChange={(event) =>
+                      setAddressForm((prev) => ({ ...prev, phoneNumber: event.target.value }))
+                    }
                     required
                     className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
@@ -388,11 +474,13 @@ function AccountPage() {
               </div>
 
               <label className="block space-y-2" htmlFor="addressLine">
-                <span className="text-sm font-medium text-ink">Dia chi cu the</span>
+                <span className="text-sm font-medium text-ink">Địa chỉ cụ thể</span>
                 <input
                   id="addressLine"
                   value={addressForm.addressLine}
-                  onChange={(event) => setAddressForm((prev) => ({ ...prev, addressLine: event.target.value }))}
+                  onChange={(event) =>
+                    setAddressForm((prev) => ({ ...prev, addressLine: event.target.value }))
+                  }
                   required
                   className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 />
@@ -400,40 +488,58 @@ function AccountPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="block space-y-2" htmlFor="district">
-                  <span className="text-sm font-medium text-ink">Quan/Huyen</span>
+                  <span className="text-sm font-medium text-ink">Quận/Huyện</span>
                   <input
                     id="district"
                     value={addressForm.district}
-                    onChange={(event) => setAddressForm((prev) => ({ ...prev, district: event.target.value }))}
+                    onChange={(event) =>
+                      setAddressForm((prev) => ({ ...prev, district: event.target.value }))
+                    }
                     className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
+
                 <label className="block space-y-2" htmlFor="addressCity">
                   <span className="text-sm font-medium text-ink">Thành phố</span>
                   <input
                     id="addressCity"
                     value={addressForm.city}
-                    onChange={(event) => setAddressForm((prev) => ({ ...prev, city: event.target.value }))}
+                    onChange={(event) =>
+                      setAddressForm((prev) => ({ ...prev, city: event.target.value }))
+                    }
                     className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
               </div>
 
-              <button type="submit" className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
+              <button
+                type="submit"
+                className="rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
+              >
                 Thêm địa chỉ
               </button>
             </form>
           </section>
 
           <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold text-ink">Ho tro nhanh</h2>
-            <p className="mt-2 text-slate-700">Can tro giup ve don hang, bao hanh hoac tư vấn thiet bi?</p>
+            <h2 className="text-2xl font-bold text-ink">Hỗ trợ nhanh</h2>
+            <p className="mt-2 text-slate-700">
+              Cần trợ giúp về đơn hàng, bảo hành hoặc tư vấn thiết bị?
+            </p>
+
             <div className="mt-4 flex flex-col gap-3">
-              <Link to="/contact" className="rounded-full border border-border bg-white px-5 py-3 text-center font-semibold text-ink transition hover:bg-slate-50">
+              <Link
+                to="/contact"
+                className="rounded-full border border-border bg-white px-5 py-3 text-center font-semibold text-ink transition hover:bg-slate-50"
+              >
                 Liên hệ ngay
               </Link>
-              <Link to="/products" className="rounded-full border border-border bg-white px-5 py-3 text-center font-semibold text-ink transition hover:bg-slate-50">
-                Xem them san pham
+
+              <Link
+                to="/products"
+                className="rounded-full border border-border bg-white px-5 py-3 text-center font-semibold text-ink transition hover:bg-slate-50"
+              >
+                Xem thêm sản phẩm
               </Link>
             </div>
           </section>

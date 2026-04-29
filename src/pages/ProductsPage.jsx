@@ -67,17 +67,30 @@ function ProductsPage() {
   }
 
   useEffect(() => {
-    Promise.all([getProducts(), getCategories(), getBrands()])
-      .then(([productData, categoryData, brandData]) => {
+    async function loadData() {
+      try {
+        const productData = await getProducts()
         setProducts(toObjectArray(productData))
-        setCategories(toObjectArray(categoryData))
-        setBrands(toObjectArray(brandData))
-      })
-      .catch(() => {
+      } catch (error) {
         setProducts([])
+      }
+
+      try {
+        const categoryData = await getCategories()
+        setCategories(toObjectArray(categoryData))
+      } catch (error) {
         setCategories([])
+      }
+
+      try {
+        const brandData = await getBrands()
+        setBrands(toObjectArray(brandData))
+      } catch (error) {
         setBrands([])
-      })
+      }
+    }
+
+    loadData()
   }, [])
 
   const filteredProducts = useMemo(() => {
@@ -135,6 +148,14 @@ function ProductsPage() {
     })
     return map
   }, [products])
+  const displayCategories = useMemo(() => {
+  if (categories.length > 0) return categories
+
+  return Array.from(categoryCounts.keys()).map((name, index) => ({
+    id: `fallback-category-${index}`,
+    name,
+  }))
+}, [categories, categoryCounts])
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage))
   const startIndex = (currentPage - 1) * productsPerPage
@@ -204,7 +225,7 @@ function ProductsPage() {
                 <small className="text-slate-500">{products.length}</small>
               </button>
 
-              {categories.slice(0, 9).map((category) => {
+              {displayCategories.slice(0, 9).map((category) => {
                 const value = safeText(category?.name || category?.categoryName || '')
                 const count = categoryCounts.get(value) || 0
                 const isActive = categoryFilter === value.toLowerCase()
@@ -236,7 +257,7 @@ function ProductsPage() {
               onChange={(event) => setBrandFilter(event.target.value)}
               className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             >
-              <option value="all">Tất cả thương hiệu</option>
+              <option value="all">All</option>
               {brands.map((brand) => {
                 const value = safeText(brand?.name || brand?.brandName || '')
                 return (
@@ -273,7 +294,6 @@ function ProductsPage() {
         <section className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <p className="text-sm text-slate-600">
-              {keywordFilter ? `Kết quả cho "${keywordFilter}"` : 'Duyệt toàn bộ sản phẩm'}
             </p>
 
             <div className="flex flex-col gap-2 lg:min-w-64">
