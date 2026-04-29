@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCart } from '../contexts/CartContext'
 import {
   formatCurrency,
@@ -11,8 +11,14 @@ import {
 function ProductCard({ product, compact = false }) {
   const { addToCart } = useCart()
   const [message, setMessage] = useState('')
+  const [liked, setLiked] = useState(false)
 
   const productId = getProductId(product)
+
+  useEffect(() => {
+    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
+    setLiked(wishlist.some((item) => getProductId(item) === productId))
+  }, [productId])
 
   async function handleAddToCart() {
     if (!productId) {
@@ -28,8 +34,38 @@ function ProductCard({ product, compact = false }) {
     }
   }
 
+  function handleToggleWishlist() {
+    if (!productId) return
+
+    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
+    const exists = wishlist.some((item) => getProductId(item) === productId)
+
+    let newWishlist
+
+    if (exists) {
+      newWishlist = wishlist.filter((item) => getProductId(item) !== productId)
+      setLiked(false)
+    } else {
+      newWishlist = [...wishlist, product]
+      setLiked(true)
+    }
+
+    localStorage.setItem('wishlist', JSON.stringify(newWishlist))
+    window.dispatchEvent(new Event('wishlistUpdated'))
+  }
+
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
+      <button
+        type="button"
+        onClick={handleToggleWishlist}
+        className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 text-2xl opacity-0 shadow-sm transition hover:scale-105 group-hover:opacity-100"
+      >
+        <span className={liked ? 'text-red-500' : 'text-slate-500'}>
+          {liked ? '♥' : '♡'}
+        </span>
+      </button>
+
       <img
         src={getProductImage(product)}
         alt={getProductName(product)}

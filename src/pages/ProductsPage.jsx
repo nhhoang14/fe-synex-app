@@ -26,6 +26,7 @@ function ProductsPage() {
   const [sortBy, setSortBy] = useState('name-asc')
   const [feedback, setFeedback] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [likedIds, setLikedIds] = useState([])
 
   const productsPerPage = 12
 
@@ -46,6 +47,11 @@ function ProductsPage() {
 
   function normalizeCategory(value = '') {
     return String(value).trim().toLowerCase()
+  }
+
+  function loadLikedIds() {
+    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
+    setLikedIds(wishlist.map((item) => getProductId(item)).filter(Boolean))
   }
 
   const categoryFilter = normalizeCategory(searchParams.get('category') || 'all')
@@ -71,26 +77,33 @@ function ProductsPage() {
       try {
         const productData = await getProducts()
         setProducts(toObjectArray(productData))
-      } catch (error) {
+      } catch {
         setProducts([])
       }
 
       try {
         const categoryData = await getCategories()
         setCategories(toObjectArray(categoryData))
-      } catch (error) {
+      } catch {
         setCategories([])
       }
 
       try {
         const brandData = await getBrands()
         setBrands(toObjectArray(brandData))
-      } catch (error) {
+      } catch {
         setBrands([])
       }
     }
 
     loadData()
+    loadLikedIds()
+
+    window.addEventListener('wishlistUpdated', loadLikedIds)
+
+    return () => {
+      window.removeEventListener('wishlistUpdated', loadLikedIds)
+    }
   }, [])
 
   const filteredProducts = useMemo(() => {
@@ -104,22 +117,29 @@ function ProductsPage() {
       })
       .filter((product) => {
         if (categoryValue === 'all') return true
+
         const categoryName = safeText(
           product?.category?.name || product?.categoryName || '',
         ).toLowerCase()
+
         return categoryName === categoryValue
       })
       .filter((product) => {
         if (brandValue === 'all') return true
+
         const brandName = safeText(
           product?.brand?.name || product?.brandName || '',
         ).toLowerCase()
+
         return brandName === brandValue
       })
       .filter((product) => {
         if (!onlyAvailable) return true
+
         if (typeof product?.available === 'boolean') return product.available
         if (typeof product?.stock === 'number') return product.stock > 0
+        if (typeof product?.stockQuantity === 'number') return product.stockQuantity > 0
+
         return true
       })
       .filter((product) => {
@@ -130,39 +150,42 @@ function ProductsPage() {
         if (sortBy === 'name-asc') {
           return safeText(getProductName(a)).localeCompare(safeText(getProductName(b)))
         }
+
         if (sortBy === 'name-desc') {
           return safeText(getProductName(b)).localeCompare(safeText(getProductName(a)))
         }
+
         if (sortBy === 'price-asc') {
           return safePrice(a) - safePrice(b)
         }
+
         return safePrice(b) - safePrice(a)
       })
   }, [products, keywordFilter, categoryFilter, brandFilter, sortBy, onlyAvailable, maxPrice])
 
   const categoryCounts = useMemo(() => {
     const map = new Map()
+
     products.forEach((product) => {
-      const name = safeText(product?.category?.name || product?.categoryName || 'Other')
+      const name = safeText(product?.category?.name || product?.categoryName || 'Khác')
       map.set(name, (map.get(name) || 0) + 1)
     })
+
     return map
   }, [products])
-  const displayCategories = useMemo(() => {
-  if (categories.length > 0) return categories
 
-  return Array.from(categoryCounts.keys()).map((name, index) => ({
-    id: `fallback-category-${index}`,
-    name,
-  }))
-}, [categories, categoryCounts])
+  const displayCategories = useMemo(() => {
+    if (categories.length > 0) return categories
+
+    return Array.from(categoryCounts.keys()).map((name, index) => ({
+      id: `fallback-category-${index}`,
+      name,
+    }))
+  }, [categories, categoryCounts])
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage))
   const startIndex = (currentPage - 1) * productsPerPage
-  const paginatedProducts = filteredProducts.slice(
-    startIndex,
-    startIndex + productsPerPage,
-  )
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + productsPerPage)
 
   useEffect(() => {
     setCurrentPage(1)
@@ -176,6 +199,7 @@ function ProductsPage() {
 
   async function handleAddToCart(product) {
     const productId = getProductId(product)
+
     if (!productId) {
       setFeedback('Không tìm thấy product id')
       return
@@ -189,6 +213,25 @@ function ProductsPage() {
     }
   }
 
+  function handleToggleWishlist(event, product) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const productId = getProductId(product)
+    if (!productId) return
+
+    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
+    const exists = wishlist.some((item) => getProductId(item) === productId)
+
+    const newWishlist = exists
+      ? wishlist.filter((item) => getProductId(item) !== productId)
+      : [...wishlist, product]
+
+    localStorage.setItem('wishlist', JSON.stringify(newWishlist))
+    setLikedIds(newWishlist.map((item) => getProductId(item)).filter(Boolean))
+    window.dispatchEvent(new Event('wishlistUpdated'))
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-[28px] border border-border bg-slate-950 p-8 text-white shadow-sm">
@@ -196,20 +239,22 @@ function ProductsPage() {
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
             Không gian sản phẩm Synex
           </h1>
+
           <p className="mt-3 text-base text-slate-200 sm:text-lg">
             Danh mục setup bàn làm việc, phụ kiện và thiết bị công nghệ được chọn lọc.
           </p>
         </div>
       </section>
 
-      <section className="grid items-start gap-4 lg:grid-cols-[280px_1fr]">
-        <aside className="filter-scrollbar sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto pr-2 space-y-5 rounded-[28px] border border-border bg-white p-6 shadow-sm">
+      <section className="grid items-start gap-6 lg:grid-cols-[280px_1fr]">
+        <aside className="filter-scrollbar sticky top-24 max-h-[calc(100vh-120px)] space-y-5 overflow-y-auto pr-2">
           <div className="border-b border-border pb-3">
             <h3 className="text-2xl font-bold text-ink">Bộ lọc</h3>
           </div>
 
           <div className="space-y-3">
             <h4 className="text-lg font-bold text-ink">Loại sản phẩm</h4>
+
             <div className="grid gap-2">
               <button
                 type="button"
@@ -221,7 +266,7 @@ function ProductsPage() {
                 ].join(' ')}
                 onClick={() => setCategoryFilter('all')}
               >
-                <span className="font-medium">All</span>
+                <span className="font-medium">Tất cả</span>
                 <small className="text-slate-500">{products.length}</small>
               </button>
 
@@ -242,7 +287,7 @@ function ProductsPage() {
                     ].join(' ')}
                     onClick={() => setCategoryFilter(value.toLowerCase())}
                   >
-                    <span className="font-medium">{value || 'Category'}</span>
+                    <span className="font-medium">{value || 'Danh mục'}</span>
                     <small className="text-slate-500">{count}</small>
                   </button>
                 )
@@ -251,15 +296,18 @@ function ProductsPage() {
           </div>
 
           <div className="space-y-3">
-            <h4 className="text-lg font-bold text-ink">Brand</h4>
+            <h4 className="text-lg font-bold text-ink">Thương hiệu</h4>
+
             <select
               value={brandFilter}
               onChange={(event) => setBrandFilter(event.target.value)}
               className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             >
               <option value="all">All</option>
+
               {brands.map((brand) => {
                 const value = safeText(brand?.name || brand?.brandName || '')
+
                 return (
                   <option key={brand.id || value} value={value.toLowerCase()}>
                     {value}
@@ -271,6 +319,7 @@ function ProductsPage() {
 
           <div className="space-y-3">
             <h4 className="text-lg font-bold text-ink">Giá tối đa</h4>
+
             <input
               type="number"
               min={0}
@@ -287,19 +336,24 @@ function ProductsPage() {
               checked={onlyAvailable}
               onChange={(event) => setOnlyAvailable(event.target.checked)}
             />
-            <span className="text-sm font-medium text-ink">Chỉ hiển thị sản phẩm còn hàng</span>
+
+            <span className="text-sm font-medium text-ink">
+              Chỉ hiển thị sản phẩm còn hàng
+            </span>
           </label>
         </aside>
 
-        <section className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm">
+        <section className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <p className="text-sm text-slate-600">
+              Hiển thị {paginatedProducts.length} / {filteredProducts.length} sản phẩm
             </p>
 
             <div className="flex flex-col gap-2 lg:min-w-64">
               <label htmlFor="sortBy" className="text-sm font-medium text-ink">
                 Sắp xếp theo
               </label>
+
               <select
                 id="sortBy"
                 value={sortBy}
@@ -320,14 +374,26 @@ function ProductsPage() {
             {paginatedProducts.map((product, index) => {
               const price = safePrice(product)
               const productId = getProductId(product)
-              const productName = safeText(getProductName(product), 'Unnamed product')
+              const productName = safeText(getProductName(product), 'Sản phẩm chưa đặt tên')
               const productLink = `/products/${productId}`
+              const isLiked = likedIds.includes(productId)
 
               return (
                 <article
-                  className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
+                  className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
                   key={productId || `${index}-${price}`}
                 >
+                  <button
+                    type="button"
+                    onClick={(event) => handleToggleWishlist(event, product)}
+                    className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 text-2xl opacity-0 shadow-sm transition hover:scale-105 group-hover:opacity-100"
+                    aria-label="Thích sản phẩm"
+                  >
+                    <span className={isLiked ? 'text-red-500' : 'text-slate-500'}>
+                      {isLiked ? '♥' : '♡'}
+                    </span>
+                  </button>
+
                   <Link to={productLink} className="flex h-full flex-col">
                     <div className="overflow-hidden">
                       <img
