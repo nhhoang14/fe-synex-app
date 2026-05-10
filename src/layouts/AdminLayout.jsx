@@ -2,14 +2,66 @@ import { useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { APP_NAME, ROUTES } from '../constants'
 
-const ADMIN_NAV_ITEMS = [
-  { to: ROUTES.ADMIN, label: 'Bảng điều khiển', icon: 'dashboard', end: true },
-  { to: ROUTES.ADMIN_PRODUCTS, label: 'Quản lý sản phẩm', icon: 'inventory_2' },
-  { to: ROUTES.ADMIN_ORDERS, label: 'Quản lý đơn hàng', icon: 'receipt_long' },
+const ADMIN_NAV_SECTIONS = [
+  {
+    section: 'Tổng quan',
+    icon: 'dashboard',
+    items: [
+      { to: ROUTES.ADMIN_DASHBOARD, label: 'Tổng quan', icon: 'dashboard', end: true },
+    ],
+  },
+  {
+    section: 'Quản lý Kinh doanh',
+    icon: 'store',
+    items: [
+      { to: ROUTES.ADMIN_ORDERS, label: 'Quản lý Đơn hàng', icon: 'receipt_long' },
+      { to: ROUTES.ADMIN_CUSTOMERS, label: 'Quản lý Khách hàng', icon: 'people' },
+    ],
+  },
+  {
+    section: 'Quản lý Sản phẩm & Kho',
+    icon: 'package_2',
+    items: [
+      { to: ROUTES.ADMIN_PRODUCTS, label: 'Sản phẩm', icon: 'inventory_2' },
+      { to: ROUTES.ADMIN_CATEGORIES, label: 'Danh mục', icon: 'category' },
+      { to: ROUTES.ADMIN_BRANDS, label: 'Thương hiệu', icon: 'business' },
+      { to: ROUTES.ADMIN_INVENTORY, label: 'Kho hàng', icon: 'warehouse' },
+    ],
+  },
+  {
+    section: 'Tương tác & Khuyến mãi',
+    icon: 'campaign',
+    items: [
+      { to: ROUTES.ADMIN_REVIEWS, label: 'Đánh giá & Bình luận', icon: 'reviews' },
+      { to: ROUTES.ADMIN_PROMOTIONS, label: 'Khuyến mãi', icon: 'local_offer' },
+    ],
+  },
+  {
+    section: 'Hệ thống & Báo cáo',
+    icon: 'admin_panel_settings',
+    items: [
+      { to: ROUTES.ADMIN_ANALYTICS, label: 'Thống kê & Báo cáo', icon: 'analytics' },
+      { to: ROUTES.ADMIN_SETTINGS, label: 'Cấu hình hệ thống', icon: 'settings' },
+    ],
+  },
 ]
 
 function AdminLayout() {
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [expandedSections, setExpandedSections] = useState({
+    'Tổng quan': true,
+    'Quản lý Kinh doanh': false,
+    'Quản lý Sản phẩm & Kho': false,
+    'Tương tác & Khuyến mãi': false,
+    'Hệ thống & Báo cáo': false,
+  })
+
+  const toggleSection = (sectionName) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [sectionName]: !prev[sectionName],
+    }))
+  }
 
   return (
     <div
@@ -20,9 +72,13 @@ function AdminLayout() {
     >
       <aside
         className={[
-          'border-b border-white/10 bg-slate-950 py-5 text-white lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r',
+          'border-b border-white/10 bg-slate-950 py-5 text-white lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r lg:flex lg:flex-col',
           isCollapsed ? 'px-3 lg:px-3' : 'px-4 lg:px-5',
         ].join(' ')}
+        style={{
+          scrollbarColor: 'rgba(100, 116, 139, 0.5) transparent',
+          scrollbarWidth: 'thin',
+        }}
       >
         <div>
           {isCollapsed ? (
@@ -49,39 +105,91 @@ function AdminLayout() {
                 </span>
                 <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
               </div>
-
-              <Link
-                to={ROUTES.HOME}
-                className="mt-6 inline-flex rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                Chuyển sang trang người dùng
-              </Link>
             </div>
           )}
         </div>
 
-        <nav className="mt-6 flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
-          {ADMIN_NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.label}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                [
-                  'inline-flex items-center gap-3 whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-semibold transition',
-                  isCollapsed ? 'justify-center lg:w-full' : '',
-                  isActive
-                    ? 'bg-sky-400/20 text-sky-200'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white',
-                ].join(' ')
-              }
-              aria-label={item.label}
-              title={item.label}
-            >
-              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-              <span className={isCollapsed ? 'hidden' : ''}>{item.label}</span>
-            </NavLink>
-          ))}
+        <nav className="mt-6 flex flex-col gap-6 overflow-y-auto pb-4 flex-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+          {ADMIN_NAV_SECTIONS.map((section) => {
+            const isSingleItem = section.items.length === 1
+            const isExpanded = expandedSections[section.section]
+
+            // Single item sections render directly as NavLink
+            if (isSingleItem) {
+              const item = section.items[0]
+              return (
+                <NavLink
+                  key={section.section}
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    [
+                      'inline-flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
+                      isCollapsed ? 'justify-center lg:w-full' : '',
+                      isActive
+                        ? 'bg-sky-400/20 text-sky-200'
+                        : 'text-slate-300 hover:bg-white/5 hover:text-white',
+                    ].join(' ')
+                  }
+                  aria-label={item.label}
+                  title={item.label}
+                >
+                  <span className="material-symbols-outlined text-[18px] flex-shrink-0">{section.icon}</span>
+                  <span className={isCollapsed ? 'hidden' : ''}>{item.label}</span>
+                </NavLink>
+              )
+            }
+
+            // Multi-item sections render with collapsible header
+            return (
+              <div key={section.section}>
+                <button
+                  onClick={() => toggleSection(section.section)}
+                  className={[
+                    'w-full inline-flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
+                    isCollapsed ? 'justify-center' : 'justify-between',
+                    isExpanded
+                      ? 'bg-white/5 text-white'
+                      : 'text-slate-300 hover:bg-white/5 hover:text-white',
+                  ].join(' ')}
+                  title={section.section}
+                >
+                  <span className="material-symbols-outlined text-[18px] flex-shrink-0">{section.icon}</span>
+                  <span className={isCollapsed ? 'hidden' : 'flex-1'}>{section.section}</span>
+                  {!isCollapsed && (
+                    <span className="material-symbols-outlined text-[18px] transition-transform flex-shrink-0">
+                      {isExpanded ? 'expand_less' : 'expand_more'}
+                    </span>
+                  )}
+                </button>
+                {isExpanded && (
+                  <div className="flex flex-col gap-1 mt-1">
+                    {section.items.map((item) => (
+                      <NavLink
+                        key={item.label}
+                        to={item.to}
+                        end={item.end}
+                        className={({ isActive }) =>
+                          [
+                            'inline-flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
+                            isCollapsed ? 'justify-center lg:w-full' : 'ml-2',
+                            isActive
+                              ? 'bg-sky-400/20 text-sky-200'
+                              : 'text-slate-300 hover:bg-white/5 hover:text-white',
+                          ].join(' ')
+                        }
+                        aria-label={item.label}
+                        title={item.label}
+                      >
+                        <span className="material-symbols-outlined text-[18px] flex-shrink-0">{item.icon}</span>
+                        <span className={isCollapsed ? 'hidden' : ''}>{item.label}</span>
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </nav>
       </aside>
 

@@ -12,9 +12,24 @@ export const ROUTES = {
   ACCOUNT: '/account',
   ORDERS: '/orders',
   WISHLIST: '/wishlist',
+  // Admin routes
   ADMIN: '/admin',
-  ADMIN_PRODUCTS: '/admin/products',
+  // Overview
+  ADMIN_DASHBOARD: '/admin/dashboard',
+  // Sales Management
   ADMIN_ORDERS: '/admin/orders',
+  ADMIN_CUSTOMERS: '/admin/customers',
+  // Catalog & Inventory
+  ADMIN_PRODUCTS: '/admin/products',
+  ADMIN_CATEGORIES: '/admin/categories',
+  ADMIN_BRANDS: '/admin/brands',
+  ADMIN_INVENTORY: '/admin/inventory',
+  // Engagement
+  ADMIN_REVIEWS: '/admin/reviews',
+  ADMIN_PROMOTIONS: '/admin/promotions',
+  // System & Reports
+  ADMIN_ANALYTICS: '/admin/analytics',
+  ADMIN_SETTINGS: '/admin/settings',
 }
 
 export const AUTH_STORAGE_KEYS = {

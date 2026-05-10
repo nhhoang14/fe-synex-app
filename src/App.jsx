@@ -1,8 +1,17 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminPage from './pages/AdminPage'
+import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminProductsPage from './pages/AdminProductsPage'
+import AdminCustomersPage from './pages/AdminCustomersPage'
+import AdminCategoriesPage from './pages/AdminCategoriesPage'
+import AdminBrandsPage from './pages/AdminBrandsPage'
+import AdminInventoryPage from './pages/AdminInventoryPage'
+import AdminReviewsPage from './pages/AdminReviewsPage'
+import AdminPromotionsPage from './pages/AdminPromotionsPage'
+import AdminAnalyticsPage from './pages/AdminAnalyticsPage'
+import AdminSettingsPage from './pages/AdminSettingsPage'
 import AccountPage from './pages/AccountPage'
 import CartPage from './pages/CartPage'
 import CheckoutPage from './pages/CheckoutPage'
@@ -73,8 +82,22 @@ function App() {
         }
       >
         <Route index element={<AdminPage />} />
-        <Route path="products" element={<AdminProductsPage />} />
+        {/* Overview */}
+        <Route path="dashboard" element={<AdminDashboardPage />} />
+        {/* Sales Management */}
         <Route path="orders" element={<AdminOrdersPage />} />
+        <Route path="customers" element={<AdminCustomersPage />} />
+        {/* Catalog & Inventory */}
+        <Route path="categories" element={<AdminCategoriesPage />} />
+        <Route path="brands" element={<AdminBrandsPage />} />
+        <Route path="products" element={<AdminProductsPage />} />
+        <Route path="inventory" element={<AdminInventoryPage />} />
+        {/* Engagement */}
+        <Route path="reviews" element={<AdminReviewsPage />} />
+        <Route path="promotions" element={<AdminPromotionsPage />} />
+        {/* System & Reports */}
+        <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="settings" element={<AdminSettingsPage />} />
       </Route>
 
       <Route element={<AuthLayout />}>
