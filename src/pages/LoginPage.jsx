@@ -32,10 +32,11 @@ function LoginPage() {
 
       const normalizedRole = resolveRoleValue(loginResponse)
 
+      // ĐÃ SỬA: Nếu là USER thông thường thì chuyển về trang chủ dashboard thay vì hồ sơ
       navigate(
         normalizedRole === USER_ROLES.ADMIN
           ? ROUTES.ADMIN
-          : ROUTES.ACCOUNT
+          : ROUTES.HOME || '/' // Sử dụng hằng số trang chủ của Synex (hoặc đường dẫn '/')
       )
     } catch (requestError) {
       setError(requestError.message || 'Đăng nhập thất bại')

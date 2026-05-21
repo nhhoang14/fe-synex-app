@@ -201,13 +201,13 @@ function ProductsPage() {
     const productId = getProductId(product)
 
     if (!productId) {
-      setFeedback('Không tìm thấy product id')
+      setFeedback('Không tìm thấy và xác định được mã ID sản phẩm.')
       return
     }
 
     try {
       await addToCart(productId, 1)
-      setFeedback(`Đã thêm ${getProductName(product)} vào giỏ hàng`)
+      setFeedback(`Đã thêm ${getProductName(product)} vào giỏ hàng thành công!`)
     } catch (error) {
       setFeedback(error.message)
     }
@@ -234,12 +234,12 @@ function ProductsPage() {
 
   return (
     <div className="space-y-4">
+      {/* Banner Synex gốc được giữ nguyên vẹn */}
       <section className="rounded-[28px] border border-border bg-slate-950 p-8 text-white shadow-sm">
         <div className="max-w-2xl">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
             Không gian sản phẩm Synex
           </h1>
-
           <p className="mt-3 text-base text-slate-200 sm:text-lg">
             Danh mục setup bàn làm việc, phụ kiện và thiết bị công nghệ được chọn lọc.
           </p>
@@ -247,6 +247,7 @@ function ProductsPage() {
       </section>
 
       <section className="grid items-start gap-6 lg:grid-cols-[280px_1fr]">
+        {/* Bộ lọc bên trái gốc */}
         <aside className="filter-scrollbar sticky top-24 max-h-[calc(100vh-120px)] space-y-5 overflow-y-auto pr-2">
           <div className="border-b border-border pb-3">
             <h3 className="text-2xl font-bold text-ink">Bộ lọc</h3>
@@ -303,11 +304,9 @@ function ProductsPage() {
               onChange={(event) => setBrandFilter(event.target.value)}
               className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
             >
-              <option value="all">All</option>
-
+              <option value="all">Tất cả thương hiệu</option>
               {brands.map((brand) => {
                 const value = safeText(brand?.name || brand?.brandName || '')
-
                 return (
                   <option key={brand.id || value} value={value.toLowerCase()}>
                     {value}
@@ -319,7 +318,6 @@ function ProductsPage() {
 
           <div className="space-y-3">
             <h4 className="text-lg font-bold text-ink">Giá tối đa</h4>
-
             <input
               type="number"
               min={0}
@@ -330,30 +328,27 @@ function ProductsPage() {
             />
           </div>
 
-          <label className="flex items-center gap-3 rounded-2xl border border-border bg-slate-50 px-4 py-3">
+          <label className="flex items-center gap-3 rounded-2xl border border-border bg-slate-50 px-4 py-3 cursor-pointer">
             <input
               type="checkbox"
               checked={onlyAvailable}
               onChange={(event) => setOnlyAvailable(event.target.checked)}
+              className="h-4 w-4"
             />
-
             <span className="text-sm font-medium text-ink">
               Chỉ hiển thị sản phẩm còn hàng
             </span>
           </label>
         </aside>
 
+        {/* Khu vực danh sách sản phẩm */}
         <section className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <p className="text-sm text-slate-600">
-              Hiển thị {paginatedProducts.length} / {filteredProducts.length} sản phẩm
-            </p>
-
+          {/* ĐÃ SỬA: Bỏ text số lượng, ô chọn Sắp xếp căn lệch phải chuẩn chỉnh */}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-end">
             <div className="flex flex-col gap-2 lg:min-w-64">
               <label htmlFor="sortBy" className="text-sm font-medium text-ink">
                 Sắp xếp theo
               </label>
-
               <select
                 id="sortBy"
                 value={sortBy}
@@ -434,7 +429,7 @@ function ProductsPage() {
 
           {filteredProducts.length === 0 && (
             <div className="rounded-3xl border border-dashed border-border px-6 py-10 text-center text-slate-500">
-              Không tìm thấy sản phẩm phù hợp.
+              Không tìm thấy phụ kiện nào phù hợp với bộ lọc hiện tại.
             </div>
           )}
 

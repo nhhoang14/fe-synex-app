@@ -21,6 +21,9 @@ function AccountPage() {
 
   // State quản lý tab đang hiển thị
   const [activeTab, setActiveTab] = useState('profile')
+  
+  // State quản lý đơn hàng đang xem chi tiết (Null nếu không xem đơn nào)
+  const [selectedOrderId, setSelectedOrderId] = useState(null)
 
   const [message, setMessage] = useState('')
   const [profile, setProfile] = useState(null)
@@ -109,11 +112,17 @@ function AccountPage() {
     [profileForm.fullName, profileForm.email],
   )
   const memberSince = useMemo(() => {
-    if (!profile?.createdAt) return null // Sửa thành null để ẩn khi không có dữ liệu
+    if (!profile?.createdAt) return null
     const date = new Date(profile.createdAt)
-    if (Number.isNaN(date.getTime())) return null // Sửa thành null để ẩn khi không có dữ liệu
+    if (Number.isNaN(date.getTime())) return null
     return date.toLocaleDateString('vi-VN')
   }, [profile])
+
+  // Lấy ra thông tin object của đơn hàng đang được nhấn xem chi tiết
+  const selectedOrder = useMemo(() => {
+    if (!selectedOrderId) return null
+    return orders.find(o => o.id === selectedOrderId || o.orderCode === selectedOrderId)
+  }, [selectedOrderId, orders])
 
   async function handleUpdateProfile(event) {
     event.preventDefault()
@@ -250,7 +259,6 @@ function AccountPage() {
             </p>
             
             <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {/* Thêm điều kiện kiểm tra ở đây */}
               {memberSince && (
                 <span className="rounded-full bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700">
                   Từ {memberSince}
@@ -268,7 +276,10 @@ function AccountPage() {
               {NAV_ITEMS.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id)
+                    setSelectedOrderId(null) // Reset khi chuyển tab
+                  }}
                   className={`flex w-full items-center justify-between px-6 py-4 text-base font-semibold transition-colors ${
                     activeTab === item.id 
                       ? 'bg-slate-50 text-ink' 
@@ -459,17 +470,31 @@ function AccountPage() {
                               {new Date(order.createdAt).toLocaleDateString('vi-VN')}
                             </td>
                             <td className="whitespace-nowrap px-6 py-4">
-                              <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 border border-amber-200">
-                                Chờ xác nhận
-                              </span>
+                              {order.status === 'COMPLETED' ? (
+                                <span className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700 border border-green-200">
+                                  COMPLETED
+                                </span>
+                              ) : order.status === 'CANCELLED' ? (
+                                <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 border border-red-200">
+                                  CANCELLED
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200">
+                                  {order.status || 'PENDING'}
+                                </span>
+                              )}
                             </td>
                             <td className="whitespace-nowrap px-6 py-4 font-semibold text-ink">
-                              {order.total?.toLocaleString('vi-VN')} đ
+                              {(order.totalAmount ?? order.totalPrice ?? order.total ?? 0).toLocaleString('vi-VN')} đ
                             </td>
                             <td className="whitespace-nowrap px-6 py-4 text-right">
-                              <Link to={`/orders/${order.id}`} className="text-sky-700 font-semibold hover:underline">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrderId(order.id || order.orderCode)}
+                                className="text-sky-700 font-semibold hover:underline"
+                              >
                                 Chi tiết →
-                              </Link>
+                              </button>
                             </td>
                           </tr>
                         ))
@@ -607,6 +632,150 @@ function AccountPage() {
           
         </main>
       </div>
+
+      {/* === MODAL KHUNG THÔNG TIN CHI TIẾT ĐƠN HÀNG (HIỂN THỊ TẠI CHỖ) === */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-border bg-white shadow-xl animate-in zoom-in-95 duration-200">
+            
+            {/* Header Modal */}
+            <div className="flex items-center justify-between border-b border-border bg-slate-50 px-6 py-4">
+              <div>
+                <h3 className="text-xl font-bold text-ink">
+                  Chi tiết đơn hàng #{selectedOrder.orderCode || selectedOrder.id}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Ngày đặt: {new Date(selectedOrder.createdAt).toLocaleDateString('vi-VN')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderId(null)}
+                className="grid h-9 w-9 place-items-center rounded-full bg-white border border-border font-semibold text-slate-600 hover:bg-slate-100 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body Modal */}
+            <div className="max-h-[60vh] overflow-y-auto p-6 space-y-6">
+              
+              {/* Trạng thái và Phương thức thanh toán */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-border p-4 bg-slate-50">
+                  <span className="text-xs font-semibold text-slate-500 block uppercase tracking-wider">Trạng thái đơn hàng</span>
+                  <div className="mt-1.5">
+                    {selectedOrder.status === 'COMPLETED' ? (
+                      <span className="inline-flex items-center rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700 border border-green-200">
+                        COMPLETED
+                      </span>
+                    ) : selectedOrder.status === 'CANCELLED' ? (
+                      <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 border border-red-200">
+                        CANCELLED
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200">
+                        {selectedOrder.status || 'PENDING'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border p-4 bg-slate-50">
+                  <span className="text-xs font-semibold text-slate-500 block uppercase tracking-wider">Phương thức thanh toán</span>
+                  <strong className="text-ink font-bold block mt-1">
+                    {selectedOrder.paymentMethod || 'COD (Thanh toán khi nhận hàng)'}
+                  </strong>
+                </div>
+              </div>
+
+              {/* Thông tin nhận hàng nếu có */}
+              {selectedOrder.shippingAddress && (
+                <div className="rounded-2xl border border-border p-4">
+                  <span className="text-xs font-semibold text-slate-500 block uppercase tracking-wider mb-2">Địa chỉ giao hàng</span>
+                  <p className="font-semibold text-ink">{selectedOrder.shippingAddress.fullName}</p>
+                  <p className="text-sm text-slate-700 mt-0.5">{selectedOrder.shippingAddress.phoneNumber}</p>
+                  <p className="text-sm text-slate-600 mt-1">{getAddressLabel(selectedOrder.shippingAddress)}</p>
+                </div>
+              )}
+
+              {/* Danh sách sản phẩm trong đơn hàng */}
+              {/* Thay thế đoạn render item cũ (khoảng dòng 450 - 470) bằng đoạn này */}
+              <div>
+                <span className="text-xs font-semibold text-slate-500 block uppercase tracking-wider mb-3">
+                  Danh sách phụ kiện
+                </span>
+                <div className="divide-y divide-border border border-border rounded-2xl overflow-hidden">
+                  {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                    selectedOrder.items.map((item, idx) => {
+                      // Tự động phân tích và lấy chính xác tên sản phẩm từ API DTO của Synex
+                      const productName = item.productName || item.product?.name || item.name || 'Sản phẩm phụ kiện';
+                      const productPrice = item.price || item.product?.price || 0;
+                      const productImage = item.product?.image || item.image;
+
+                      return (
+                        <div key={item.id || idx} className="flex items-center justify-between p-4 bg-white hover:bg-slate-50/50">
+                          <div className="flex items-center gap-3">
+                            {productImage ? (
+                              <img 
+                                src={productImage} 
+                                alt={productName} 
+                                className="h-12 w-12 rounded-xl object-cover border border-border" 
+                              />
+                            ) : (
+                              // Khung hiển thị tạm thời bằng icon nếu sản phẩm chưa có ảnh
+                              <div className="h-12 w-12 rounded-xl bg-slate-100 border border-border flex items-center justify-center text-slate-400">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                              </div>
+                            )}
+                            <div>
+                              {/* Tên sản phẩm đã được sửa để lấy đúng thông tin thực tế */}
+                              <p className="font-semibold text-ink text-sm max-w-[350px] truncate">
+                                {productName}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                Số lượng: {item.quantity || 1} × {productPrice.toLocaleString('vi-VN')} đ
+                              </p>
+                            </div>
+                          </div>
+                          <span className="font-semibold text-ink text-sm whitespace-nowrap">
+                            {(productPrice * (item.quantity || 1)).toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="p-4 text-sm text-slate-500 text-center">
+                      Không tìm thấy thông tin sản phẩm.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer Modal */}
+            <div className="border-t border-border bg-slate-50 px-6 py-4 flex items-center justify-between">
+              <div className="text-left">
+                <span className="text-xs font-semibold text-slate-500 block uppercase tracking-wider">Tổng thanh toán</span>
+                <strong className="text-xl font-bold text-ink">
+                  {(selectedOrder.totalAmount ?? selectedOrder.totalPrice ?? selectedOrder.total ?? 0).toLocaleString('vi-VN')} đ
+                </strong>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderId(null)}
+                className="rounded-full bg-slate-900 px-6 py-2.5 font-semibold text-white transition hover:bg-slate-800 shadow-sm text-sm"
+              >
+                Đóng lại
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }
