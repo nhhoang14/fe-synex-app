@@ -30,33 +30,44 @@ function RegisterPage() {
     setSuccess('')
 
     if (form.password !== form.confirmPassword) {
-      setError('Mật khẩu xac nhan khong khop')
+      setError('Mật khẩu xác nhận không khớp')
       return
     }
 
     try {
       await register({
-        fullName: form.fullName,
-        email: form.email,
+        fullName: form.fullName.trim(),
+        email: form.email.trim(),
         password: form.password,
       })
-      setSuccess('Đăng ký thanh cong, vui long dang nhap')
-      navigate(ROUTES.LOGIN)
+      setSuccess('Đăng ký thành công! Vui lòng đăng nhập.')
+      
+      // Chuyển hướng sang trang đăng nhập sau khi tạo tài khoản thành công
+      setTimeout(() => {
+        navigate(ROUTES.LOGIN)
+      }, 1500)
     } catch (requestError) {
-      setError(requestError.message)
+      setError(requestError.message || 'Đăng ký thất bại')
     }
   }
 
   return (
-    <form className="space-y-4 rounded-[28px] border border-border bg-white p-8 shadow-sm" onSubmit={handleSubmit}>
+    <form 
+      className="space-y-4 rounded-[28px] border border-border bg-white p-8 shadow-sm animate-in fade-in duration-300" 
+      onSubmit={handleSubmit}
+    >
       <h1 className="text-4xl font-bold tracking-tight text-ink">Đăng ký</h1>
+
+      {/* Đã thêm dấu tiếng Việt chuẩn cho các nhãn FormField */}
       <FormField
-        label="Ho va ten"
+        label="Họ và tên"
         name="fullName"
+        type="text"
         value={form.fullName}
         onChange={handleChange}
         required
       />
+
       <FormField
         label="Email"
         name="email"
@@ -65,6 +76,7 @@ function RegisterPage() {
         onChange={handleChange}
         required
       />
+
       <FormField
         label="Mật khẩu"
         name="password"
@@ -73,21 +85,32 @@ function RegisterPage() {
         onChange={handleChange}
         required
       />
+
       <FormField
-        label="Xac nhan mat khau"
+        label="Xác nhận mật khẩu"
         name="confirmPassword"
         type="password"
         value={form.confirmPassword}
         onChange={handleChange}
         required
       />
-      <button type="submit" className="w-full rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800">
-        Tao tai khoan
+
+      <button 
+        type="submit" 
+        className="w-full rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800 active:scale-[0.99]"
+      >
+        Tạo tài khoản
       </button>
+
+      {/* Hiển thị các thông báo có dấu rõ ràng */}
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
       {success && <p className="text-sm font-medium text-emerald-700">{success}</p>}
+
       <p className="text-sm text-slate-600">
-        Da co tai khoan? <Link to={ROUTES.LOGIN}>Đăng nhập</Link>
+        Đã có tài khoản?{' '}
+        <Link className="font-semibold text-sky-700 hover:underline" to={ROUTES.LOGIN}>
+          Đăng nhập ngay
+        </Link>
       </p>
     </form>
   )

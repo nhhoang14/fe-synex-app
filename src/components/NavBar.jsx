@@ -285,20 +285,6 @@ function NavBar() {
                   </Link>
 
                   <Link
-                    to={ROUTES.ORDERS}
-                    onClick={() => setMenuOpen(false)}
-                    className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
-                  >
-                    <span
-                      className="material-symbols-outlined text-[20px] text-blue-500"
-                      aria-hidden="true"
-                    >
-                      receipt_long
-                    </span>
-                    Đơn hàng
-                  </Link>
-
-                  <Link
                     to={ROUTES.WISHLIST}
                     onClick={() => setMenuOpen(false)}
                     className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-left font-medium text-ink transition hover:bg-slate-100"
