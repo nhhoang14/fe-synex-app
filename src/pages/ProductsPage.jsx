@@ -234,7 +234,7 @@ function ProductsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Banner Synex gốc được giữ nguyên vẹn */}
+      {/* Banner */}
       <section className="rounded-[28px] border border-border bg-slate-950 p-8 text-white shadow-sm">
         <div className="max-w-2xl">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
@@ -246,13 +246,35 @@ function ProductsPage() {
         </div>
       </section>
 
-      <section className="grid items-start gap-6 lg:grid-cols-[280px_1fr]">
-        {/* Bộ lọc bên trái gốc */}
-        <aside className="filter-scrollbar sticky top-24 max-h-[calc(100vh-120px)] space-y-5 overflow-y-auto pr-2">
-          <div className="border-b border-border pb-3">
-            <h3 className="text-2xl font-bold text-ink">Bộ lọc</h3>
-          </div>
+      {/* ĐÃ SỬA: THANH TIÊU ĐỀ NẰM NGANG (Bộ lọc và Sắp xếp nằm cùng 1 hàng) */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 pt-2">
+        {/* Cột Bộ lọc (Bằng đúng chiều rộng của cột Filter bên dưới để chuẩn layout) */}
+        <div className="lg:w-[280px]">
+          <h3 className="text-2xl font-bold text-ink">Bộ lọc</h3>
+        </div>
+        
+        {/* Cột Sắp xếp theo (Nằm ngang hàng, dồn sang phải) */}
+        <div className="flex items-center gap-3">
+          <label htmlFor="sortBy" className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+            Sắp xếp theo
+          </label>
+          <select
+            id="sortBy"
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+            className="min-w-[180px] rounded-2xl border border-border bg-white px-4 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 font-medium text-ink"
+          >
+            <option value="name-asc">Tên A-Z</option>
+            <option value="name-desc">Tên Z-A</option>
+            <option value="price-asc">Giá tăng dần</option>
+            <option value="price-desc">Giá giảm dần</option>
+          </select>
+        </div>
+      </div>
 
+      <section className="grid items-start gap-6 lg:grid-cols-[280px_1fr]">
+        {/* Bộ lọc bên trái */}
+        <aside className="filter-scrollbar sticky top-24 max-h-[calc(100vh-120px)] space-y-5 overflow-y-auto pr-2 pt-1">
           <div className="space-y-3">
             <h4 className="text-lg font-bold text-ink">Loại sản phẩm</h4>
 
@@ -343,27 +365,7 @@ function ProductsPage() {
 
         {/* Khu vực danh sách sản phẩm */}
         <section className="space-y-4">
-          {/* ĐÃ SỬA: Bỏ text số lượng, ô chọn Sắp xếp căn lệch phải chuẩn chỉnh */}
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-end">
-            <div className="flex flex-col gap-2 lg:min-w-64">
-              <label htmlFor="sortBy" className="text-sm font-medium text-ink">
-                Sắp xếp theo
-              </label>
-              <select
-                id="sortBy"
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
-                className="rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-              >
-                <option value="name-asc">Tên A-Z</option>
-                <option value="name-desc">Tên Z-A</option>
-                <option value="price-asc">Giá tăng dần</option>
-                <option value="price-desc">Giá giảm dần</option>
-              </select>
-            </div>
-          </div>
-
-          {feedback && <p className="text-sm font-medium text-slate-600">{feedback}</p>}
+          {feedback && <p className="text-sm font-medium text-slate-600 mb-2">{feedback}</p>}
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {paginatedProducts.map((product, index) => {

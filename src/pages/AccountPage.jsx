@@ -208,6 +208,7 @@ function AccountPage() {
     setIsAddressModalOpen(true)
   }
 
+  // GỌI API ĐỂ LƯU HOẶC CẬP NHẬT ĐỊA CHỈ
   async function handleAddressFormSubmit(event) {
     event.preventDefault()
     setMessage('')
@@ -248,6 +249,7 @@ function AccountPage() {
   }
 
   async function handleDeleteAddress(addressId) {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này không?')) return
     setMessage('')
     try {
       await deleteAddress(token, addressId)
@@ -556,7 +558,7 @@ function AccountPage() {
             </div>
           )}
 
-          {/* TAB: ĐỊA CHỈ - GIỮ NGUYÊN HOÀN TOÀN LAYOUT GỐC CỦA BẠN */}
+          {/* TAB: ĐỊA CHỈ - GIỮ NGUYÊN HOÀN TOÀN CÁC NÚT THÊM/SỬA/XÓA CỦA BẠN */}
           {activeTab === 'addresses' && (
             <div className="space-y-4 animate-in fade-in duration-300">
                <div className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
@@ -610,20 +612,21 @@ function AccountPage() {
                               Đặt mặc định
                             </button>
 
+                            {/* CHÍNH XÁC NÚT CHỈNH SỬA VÀ XÓA BỎ BẢN GỐC CỦA BẠN */}
                             <button
                               type="button"
                               onClick={() => openEditAddressModal(address)}
-                              className="rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition hover:bg-sky-100"
+                              className="rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-ink"
                             >
-                              Sửa
+                              Chỉnh sửa
                             </button>
 
                             <button
                               type="button"
                               onClick={() => handleDeleteAddress(address.id)}
-                              className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+                              className="rounded-full border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
                             >
-                              Xóa
+                              Xóa bỏ
                             </button>
                           </div>
                         </article>
@@ -694,20 +697,32 @@ function AccountPage() {
                 </div>
 
                 {(() => {
-                  let orderAddr = selectedOrder.shippingAddress || selectedOrder.address;
-                  if (!orderAddr && selectedOrder.shippingAddressId) {
-                    orderAddr = addresses.find(a => a.id === selectedOrder.shippingAddressId);
-                  }
-                  if (!orderAddr) {
-                    orderAddr = defaultAddress;
+                  let recName = selectedOrder.receiverName || selectedOrder.fullName;
+                  let recPhone = selectedOrder.receiverPhone || selectedOrder.phoneNumber || selectedOrder.phone;
+                  let recAddress = typeof selectedOrder.address === 'string' ? selectedOrder.address : null;
+
+                  if (selectedOrder.shippingAddress && typeof selectedOrder.shippingAddress === 'object') {
+                    recName = recName || selectedOrder.shippingAddress.fullName;
+                    recPhone = recPhone || selectedOrder.shippingAddress.phoneNumber;
+                    recAddress = recAddress || getAddressLabel(selectedOrder.shippingAddress) || selectedOrder.shippingAddress.addressLine || selectedOrder.shippingAddress.detailAddress;
+                  } else if (selectedOrder.address && typeof selectedOrder.address === 'object') {
+                    recName = recName || selectedOrder.address.fullName;
+                    recPhone = recPhone || selectedOrder.address.phoneNumber;
+                    recAddress = recAddress || getAddressLabel(selectedOrder.address) || selectedOrder.address.addressLine || selectedOrder.address.detailAddress;
                   }
 
-                  const recName = orderAddr?.fullName || selectedOrder.receiverName || selectedOrder.fullName || profile?.fullName || profile?.name || 'Chưa cập nhật tên';
-                  const recPhone = orderAddr?.phoneNumber || selectedOrder.receiverPhone || selectedOrder.phoneNumber || profile?.phoneNumber || profile?.phone || 'Chưa cập nhật SĐT';
-                  
-                  const recAddress = orderAddr 
-                    ? (getAddressLabel(orderAddr) || orderAddr.addressLine || orderAddr.detailAddress)
-                    : (typeof selectedOrder.address === 'string' ? selectedOrder.address : 'Chưa cập nhật địa chỉ');
+                  if ((!recName || !recAddress) && selectedOrder.shippingAddressId) {
+                    const matchAddr = addresses.find(a => a.id === selectedOrder.shippingAddressId);
+                    if (matchAddr) {
+                      recName = recName || matchAddr.fullName;
+                      recPhone = recPhone || matchAddr.phoneNumber;
+                      recAddress = recAddress || getAddressLabel(matchAddr) || matchAddr.addressLine;
+                    }
+                  }
+
+                  recName = recName || profile?.fullName || profile?.name || 'Chưa cập nhật tên';
+                  recPhone = recPhone || profile?.phoneNumber || profile?.phone || 'Chưa cập nhật SĐT';
+                  recAddress = recAddress || 'Chưa cập nhật địa chỉ';
 
                   return (
                     <div className="rounded-2xl border border-border bg-slate-50 p-4 sm:col-span-2">
@@ -803,20 +818,15 @@ function AccountPage() {
         </div>
       )}
 
-      {/* === MODAL ĐA NĂNG: THÊM MỚI / SỬA THÔNG TIN ĐỊA CHỈ === */}
+      {/* === MODAL THÊM MỚI / SỬA THÔNG TIN ĐỊA CHỈ - GIỮ NGUYÊN FORM GỐC === */}
       {isAddressModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-border bg-white shadow-xl animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-border bg-white shadow-xl animate-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between border-b border-border bg-slate-50 px-6 py-4">
-              <div>
-                <h3 className="text-xl font-bold text-ink">
-                  {editingAddressId ? 'Chỉnh sửa thông tin địa chỉ' : 'Thêm địa chỉ giao hàng mới'}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {editingAddressId ? 'Thay đổi thông tin nhận hàng hiện tại.' : 'Tối đa 3 địa chỉ nhận hàng cho mỗi tài khoản.'}
-                </p>
-              </div>
+              <h3 className="text-xl font-bold text-ink">
+                {editingAddressId ? 'Chỉnh sửa địa chỉ' : 'Thêm địa chỉ mới'}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsAddressModalOpen(false)}
@@ -826,101 +836,84 @@ function AccountPage() {
               </button>
             </div>
 
-            <form onSubmit={handleAddressFormSubmit}>
-              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block space-y-2" htmlFor="addressFullName">
-                    <span className="text-sm font-medium text-ink">Họ tên người nhận</span>
-                    <input
-                      id="addressFullName"
-                      type="text"
-                      placeholder="Nhập họ và tên người nhận"
-                      value={addressForm.fullName}
-                      onChange={(event) =>
-                        setAddressForm((prev) => ({ ...prev, fullName: event.target.value }))
-                      }
-                      required
-                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    />
-                  </label>
-
-                  <label className="block space-y-2" htmlFor="addressPhone">
-                    <span className="text-sm font-medium text-ink">Số điện thoại</span>
-                    <input
-                      id="addressPhone"
-                      type="text"
-                      placeholder="Nhập số điện thoại nhận hàng"
-                      value={addressForm.phoneNumber}
-                      onChange={(event) =>
-                        setAddressForm((prev) => ({ ...prev, phoneNumber: event.target.value }))
-                      }
-                      required
-                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    />
-                  </label>
-                </div>
-
-                <label className="block space-y-2" htmlFor="addressLine">
-                  <span className="text-sm font-medium text-ink">Địa chỉ cụ thể</span>
+            <form onSubmit={handleAddressFormSubmit} className="p-6 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block space-y-2" htmlFor="addressFullName">
+                  <span className="text-sm font-medium text-ink">Tên người nhận</span>
                   <input
-                    id="addressLine"
-                    type="text"
-                    placeholder="Số nhà, tên đường, tòa nhà..."
-                    value={addressForm.addressLine}
-                    onChange={(event) =>
-                      setAddressForm((prev) => ({ ...prev, addressLine: event.target.value }))
-                    }
+                    id="addressFullName"
                     required
-                    className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                    value={addressForm.fullName}
+                    onChange={(e) => setAddressForm(p => ({ ...p, fullName: e.target.value }))}
+                    placeholder="Nguyễn Văn A"
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                   />
                 </label>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block space-y-2" htmlFor="district">
-                    <span className="text-sm font-medium text-ink">Quận / Huyện</span>
-                    <input
-                      id="district"
-                      type="text"
-                      placeholder="Nhập quận hoặc huyện"
-                      value={addressForm.district}
-                      onChange={(event) =>
-                        setAddressForm((prev) => ({ ...prev, district: event.target.value }))
-                      }
-                      required
-                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    />
-                  </label>
-
-                  <label className="block space-y-2" htmlFor="addressCity">
-                    <span className="text-sm font-medium text-ink">Thành phố / Tỉnh</span>
-                    <input
-                      id="addressCity"
-                      type="text"
-                      placeholder="Nhập tỉnh hoặc thành phố"
-                      value={addressForm.city}
-                      onChange={(event) =>
-                        setAddressForm((prev) => ({ ...prev, city: event.target.value }))
-                      }
-                      required
-                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                    />
-                  </label>
-                </div>
+                <label className="block space-y-2" htmlFor="addressPhoneNumber">
+                  <span className="text-sm font-medium text-ink">Số điện thoại</span>
+                  <input
+                    id="addressPhoneNumber"
+                    required
+                    value={addressForm.phoneNumber}
+                    onChange={(e) => setAddressForm(p => ({ ...p, phoneNumber: e.target.value }))}
+                    placeholder="0912345678"
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  />
+                </label>
               </div>
 
-              <div className="border-t border-border bg-slate-50 px-6 py-4 flex items-center justify-end gap-3">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block space-y-2" htmlFor="addressCity">
+                  <span className="text-sm font-medium text-ink">Tỉnh / Thành phố</span>
+                  <input
+                    id="addressCity"
+                    required
+                    value={addressForm.city}
+                    onChange={(e) => setAddressForm(p => ({ ...p, city: e.target.value }))}
+                    placeholder="Hà Nội"
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  />
+                </label>
+
+                <label className="block space-y-2" htmlFor="addressDistrict">
+                  <span className="text-sm font-medium text-ink">Quận / Huyện</span>
+                  <input
+                    id="addressDistrict"
+                    required
+                    value={addressForm.district}
+                    onChange={(e) => setAddressForm(p => ({ ...p, district: e.target.value }))}
+                    placeholder="Cầu Giấy"
+                    className="w-full rounded-2xl border border-border bg-white px-4 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                  />
+                </label>
+              </div>
+
+              <label className="block space-y-2" htmlFor="addressLine">
+                <span className="text-sm font-medium text-ink">Địa chỉ chi tiết (Số nhà, đường...)</span>
+                <input
+                  id="addressLine"
+                  required
+                  value={addressForm.addressLine}
+                  onChange={(e) => setAddressForm(p => ({ ...p, addressLine: e.target.value }))}
+                  placeholder="Số 123 Đường Xuân Thủy"
+                  className="w-full rounded-2xl border border-border bg-white px-4 py-2.5 text-sm outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                />
+              </label>
+
+              <div className="border-t border-border pt-4 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsAddressModalOpen(false)}
-                  className="rounded-full border border-border bg-white px-5 py-2.5 font-semibold text-slate-700 transition hover:bg-slate-100 text-sm"
+                  className="rounded-full border border-border bg-white px-5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 transition"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="rounded-full bg-slate-900 px-6 py-2.5 font-semibold text-white transition hover:bg-slate-800 shadow-sm text-sm"
+                  className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800 transition shadow-sm"
                 >
-                  {editingAddressId ? 'Cập nhật' : 'Thêm địa chỉ'}
+                  Lưu địa chỉ
                 </button>
               </div>
             </form>
