@@ -27,20 +27,20 @@ function CartPage() {
   useEffect(() => {
     if (isAuthenticated) {
       fetchCart().catch(() => {
-        setMessage('Không tai được gio hang')
+        setMessage('Không tải được giỏ hàng')
       })
     }
   }, [isAuthenticated, fetchCart])
 
   async function ensureCart() {
     if (!isAuthenticated) {
-      setMessage('Vui long dang nhap hop le de tai va cap nhat du lieu gio hang.')
+      setMessage('Vui lòng đăng nhập hợp lệ để tải và cập nhật dữ liệu giỏ hàng.')
       return
     }
 
     try {
       await openCart()
-      setMessage('Da tao/lay gio hang hien tai')
+      setMessage('Đã tạo/lấy giỏ hàng hiện tại')
     } catch (error) {
       setMessage(error.message)
     }
@@ -80,17 +80,17 @@ function CartPage() {
     <div className="space-y-4">
       <section className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
         <article className="rounded-[28px] border border-border bg-white p-8 shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">GIO HANG SYNEX</p>
-          <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">Giỏ hàng cua ban</h1>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-700">GIỎ HÀNG SYNEX</p>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-ink">Giỏ hàng của bạn</h1>
         </article>
 
         <article className="rounded-[28px] border border-border bg-slate-950 p-8 text-white shadow-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-300">GIO HANG</p>
-          <h2 className="mt-2 text-3xl font-bold">{String(items.length).padStart(2, '0')} san pham</h2>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-sky-300">GIỎ HÀNG</p>
+          <h2 className="mt-2 text-3xl font-bold">{String(items.length).padStart(2, '0')} sản phẩm</h2>
           <p className="mt-3 text-slate-200">
             {isAuthenticated
-              ? 'Ban co the tang giam so luong va xoa nhanh tung san pham trong gio.'
-              : 'Can dang nhap hop le de tai va cap nhat du lieu gio hang.'}
+              ? 'Bạn có thể tăng giảm số lượng và xóa nhanh từng sản phẩm trong giỏ.'
+              : 'Cần đăng nhập hợp lệ để tải và cập nhật dữ liệu giỏ hàng.'}
           </p>
         </article>
       </section>
@@ -98,7 +98,7 @@ function CartPage() {
       <section className="grid gap-4 lg:grid-cols-[1fr_340px]">
         <section className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <h2 className="text-2xl font-bold text-ink">Sản phẩm trong gio</h2>
+            <h2 className="text-2xl font-bold text-ink">Sản phẩm trong giỏ</h2>
             <div className="flex flex-wrap gap-3">
               <Link to={ROUTES.PRODUCTS} className="rounded-full border border-border bg-white px-4 py-2 font-semibold text-ink transition hover:bg-slate-50">
                 Tiếp tục mua sắm
@@ -114,8 +114,8 @@ function CartPage() {
           {items.length === 0 ? (
             <p className="text-slate-700">
               {isAuthenticated
-                ? 'Giỏ hàng dang trong. Hay them san pham de tiep tuc thanh toan.'
-                : 'Không tai được gio hang. Hay dang nhap truoc.'}
+                ? 'Giỏ hàng đang trống. Hãy thêm sản phẩm để tiếp tục thanh toán.'
+                : 'Không tải được giỏ hàng. Hãy đăng nhập trước.'}
             </p>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-border">

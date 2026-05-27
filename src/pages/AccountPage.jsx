@@ -26,6 +26,9 @@ function AccountPage() {
   // State quản lý đơn hàng đang xem chi tiết (Null nếu không xem đơn nào)
   const [selectedOrderId, setSelectedOrderId] = useState(null)
 
+  // State quản lý bộ lọc trạng thái đơn hàng
+  const [orderStatusFilter, setOrderStatusFilter] = useState('ALL')
+
   // ĐÓN NHẬN TRẠNG THÁI TỪ FOOTER: Tự động chuyển tab khi bấm vào link "Đơn hàng của tôi"
   useEffect(() => {
     if (location.state && location.state.activeTab) {
@@ -145,6 +148,12 @@ function AccountPage() {
     if (!selectedOrderId) return null
     return orders.find(o => o.id === selectedOrderId || o.orderCode === selectedOrderId)
   }, [selectedOrderId, orders])
+
+  // Lọc danh sách đơn hàng dựa trên trạng thái đã chọn
+  const filteredOrders = useMemo(() => {
+    if (orderStatusFilter === 'ALL') return orders;
+    return orders.filter(order => order.status === orderStatusFilter);
+  }, [orders, orderStatusFilter]);
 
   async function handleUpdateProfile(event) {
     event.preventDefault()
@@ -496,24 +505,74 @@ function AccountPage() {
                 <h2 className="text-2xl font-bold text-ink">Lịch sử đơn hàng</h2>
                 <p className="mt-2 text-slate-700 mb-6">Theo dõi các đơn hàng gần đây và xem chi tiết.</p>
 
+                <div className="mb-6 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('ALL')}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      orderStatusFilter === 'ALL' 
+                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
+                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('PENDING')}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      orderStatusFilter === 'PENDING' 
+                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
+                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Đang xử lý
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('COMPLETED')}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      orderStatusFilter === 'COMPLETED' 
+                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
+                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Hoàn thành
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('CANCELLED')}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      orderStatusFilter === 'CANCELLED' 
+                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
+                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    Đã hủy
+                  </button>
+                </div>
+
+                {/* SỬA LỖI XÊ DỊCH: Chia 5 cột mỗi cột 20% đều nhau để bảng cố định tuyệt đối */}
                 <div className="overflow-x-auto rounded-2xl border border-border bg-white">
-                  <table className="w-full text-left text-sm">
+                  <table className="w-full text-left text-sm table-fixed min-w-[700px]">
                     <thead>
                       <tr className="border-b border-border bg-slate-50">
-                        <th className="whitespace-nowrap px-6 py-4 font-semibold text-ink">MÃ ĐƠN</th>
-                        <th className="whitespace-nowrap px-6 py-4 font-semibold text-ink">NGÀY ĐẶT</th>
-                        <th className="whitespace-nowrap px-6 py-4 font-semibold text-ink">TRẠNG THÁI</th>
-                        <th className="whitespace-nowrap px-6 py-4 font-semibold text-ink">TỔNG TIỀN</th>
-                        <th className="whitespace-nowrap px-6 py-4 font-semibold text-ink text-right">THAO TÁC</th>
+                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">MÃ ĐƠN</th>
+                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">NGÀY ĐẶT</th>
+                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">TRẠNG THÁI</th>
+                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">TỔNG TIỀN</th>
+                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink text-right">THAO TÁC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {orders.length === 0 ? (
+                      {filteredOrders.length === 0 ? (
                         <tr>
-                          <td colSpan="5" className="px-6 py-8 text-center text-slate-500 font-medium">Chưa có đơn hàng nào.</td>
+                          <td colSpan="5" className="px-6 py-8 text-center text-slate-500 font-medium">
+                            {orders.length === 0 ? 'Chưa có đơn hàng nào.' : 'Không có đơn hàng nào khớp với trạng thái này.'}
+                          </td>
                         </tr>
                       ) : (
-                        orders.map((order) => (
+                        filteredOrders.map((order) => (
                           <tr key={order.id || order.orderCode} className="hover:bg-slate-50">
                             <td className="whitespace-nowrap px-6 py-4 font-semibold text-ink">
                               {order.orderCode || `ORD-${order.id}`}
@@ -558,7 +617,7 @@ function AccountPage() {
             </div>
           )}
 
-          {/* TAB: ĐỊA CHỈ - GIỮ NGUYÊN HOÀN TOÀN CÁC NÚT THÊM/SỬA/XÓA CỦA BẠN */}
+          {/* TAB: ĐỊA CHỈ */}
           {activeTab === 'addresses' && (
             <div className="space-y-4 animate-in fade-in duration-300">
                <div className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
@@ -612,7 +671,6 @@ function AccountPage() {
                               Đặt mặc định
                             </button>
 
-                            {/* CHÍNH XÁC NÚT CHỈNH SỬA VÀ XÓA BỎ BẢN GỐC CỦA BẠN */}
                             <button
                               type="button"
                               onClick={() => openEditAddressModal(address)}
@@ -818,10 +876,10 @@ function AccountPage() {
         </div>
       )}
 
-      {/* === MODAL THÊM MỚI / SỬA THÔNG TIN ĐỊA CHỈ - GIỮ NGUYÊN FORM GỐC === */}
+      {/* === MODAL ĐA NĂNG: THÊM MỚI / SỬA THÔNG TIN ĐỊA CHỈ === */}
       {isAddressModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-border bg-white shadow-xl animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-border bg-white shadow-xl animate-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between border-b border-border bg-slate-50 px-6 py-4">
               <h3 className="text-xl font-bold text-ink">
