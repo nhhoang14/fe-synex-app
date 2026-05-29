@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { resolveRoleValue } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
+import { useCart } from '../contexts/CartContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   changeMyPassword,
@@ -12,12 +13,20 @@ import {
   updateMyProfile,
 } from '../services/userService'
 import { getMyOrders } from '../services/orderService'
-import { getAddressLabel } from '../utils/normalizers'
+import {
+  getAddressLabel,
+  formatCurrency,
+  getProductId,
+  getProductImage,
+  getProductName,
+  getProductPrice,
+} from '../utils/normalizers'
 
 function AccountPage() {
   usePageTitle('Tài khoản - Synex')
 
   const { token, loadProfile, logout } = useAuth()
+  const { addToCart } = useCart()
   const location = useLocation()
 
   // State quản lý tab đang hiển thị
@@ -29,6 +38,9 @@ function AccountPage() {
   // State quản lý bộ lọc trạng thái đơn hàng
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL')
 
+  // State lưu trữ danh sách sản phẩm đã thích
+  const [wishlist, setWishlist] = useState([])
+
   // ĐÓN NHẬN TRẠNG THÁI TỪ FOOTER: Tự động chuyển tab khi bấm vào link "Đơn hàng của tôi"
   useEffect(() => {
     if (location.state && location.state.activeTab) {
@@ -36,6 +48,21 @@ function AccountPage() {
       setSelectedOrderId(null) // Đóng modal chi tiết đơn hàng cũ nếu đang mở
     }
   }, [location])
+
+  // LẮNG NGHE & TẢI DANH SÁCH YÊU THÍCH TỪ LOCAL STORAGE
+  useEffect(() => {
+    function loadWishlist() {
+      const stored = JSON.parse(localStorage.getItem('wishlist') || '[]')
+      setWishlist(stored)
+    }
+    
+    loadWishlist()
+    window.addEventListener('wishlistUpdated', loadWishlist)
+    
+    return () => {
+      window.removeEventListener('wishlistUpdated', loadWishlist)
+    }
+  }, [])
 
   // State quản lý Modal Địa chỉ (Thêm/Sửa)
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false)
@@ -138,18 +165,15 @@ function AccountPage() {
     return date.toLocaleDateString('vi-VN')
   }, [profile])
 
-  // Lấy ra địa chỉ mặc định
   const defaultAddress = useMemo(() => {
     return addresses.find((a) => a.isDefault || a.default) || addresses[0]
   }, [addresses])
 
-  // Lấy ra thông tin object của đơn hàng đang được nhấn xem chi tiết
   const selectedOrder = useMemo(() => {
     if (!selectedOrderId) return null
     return orders.find(o => o.id === selectedOrderId || o.orderCode === selectedOrderId)
   }, [selectedOrderId, orders])
 
-  // Lọc danh sách đơn hàng dựa trên trạng thái đã chọn
   const filteredOrders = useMemo(() => {
     if (orderStatusFilter === 'ALL') return orders;
     return orders.filter(order => order.status === orderStatusFilter);
@@ -217,7 +241,6 @@ function AccountPage() {
     setIsAddressModalOpen(true)
   }
 
-  // GỌI API ĐỂ LƯU HOẶC CẬP NHẬT ĐỊA CHỈ
   async function handleAddressFormSubmit(event) {
     event.preventDefault()
     setMessage('')
@@ -269,6 +292,29 @@ function AccountPage() {
     }
   }
 
+  // CÁC HÀM XỬ LÝ SẢN PHẨM ĐÃ THÍCH
+  function handleRemoveFromWishlist(productId) {
+    const newWishlist = wishlist.filter((item) => getProductId(item) !== productId)
+    localStorage.setItem('wishlist', JSON.stringify(newWishlist))
+    setWishlist(newWishlist)
+    window.dispatchEvent(new Event('wishlistUpdated'))
+    setMessage('Đã bỏ thích sản phẩm.')
+  }
+
+  async function handleAddToCart(product) {
+    const productId = getProductId(product)
+    if (!productId) {
+      setMessage('Không tìm thấy và xác định được mã ID sản phẩm.')
+      return
+    }
+    try {
+      await addToCart(productId, 1)
+      setMessage(`Đã thêm ${getProductName(product)} vào giỏ hàng thành công!`)
+    } catch (error) {
+      setMessage(error.message)
+    }
+  }
+
   const NAV_ITEMS = [
     {
       id: 'profile',
@@ -285,6 +331,15 @@ function AccountPage() {
       icon: (
         <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      )
+    },
+    {
+      id: 'wishlist',
+      label: 'Sản phẩm đã thích',
+      icon: (
+        <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
         </svg>
       )
     },
@@ -509,10 +564,10 @@ function AccountPage() {
                   <button
                     type="button"
                     onClick={() => setOrderStatusFilter('ALL')}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    className={`rounded-full px-4 py-2 text-sm transition-colors ${
                       orderStatusFilter === 'ALL' 
-                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
-                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                        ? 'bg-slate-900 text-white shadow-sm font-semibold' 
+                        : 'bg-white border border-border text-slate-600 font-medium hover:bg-slate-50'
                     }`}
                   >
                     Tất cả
@@ -520,10 +575,21 @@ function AccountPage() {
                   <button
                     type="button"
                     onClick={() => setOrderStatusFilter('PENDING')}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    className={`rounded-full px-4 py-2 text-sm transition-colors ${
                       orderStatusFilter === 'PENDING' 
-                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
-                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                        ? 'bg-slate-900 text-white shadow-sm font-semibold' 
+                        : 'bg-white border border-border text-slate-600 font-medium hover:bg-slate-50'
+                    }`}
+                  >
+                    Chờ xác nhận
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOrderStatusFilter('PROCESSING')}
+                    className={`rounded-full px-4 py-2 text-sm transition-colors ${
+                      orderStatusFilter === 'PROCESSING' 
+                        ? 'bg-slate-900 text-white shadow-sm font-semibold' 
+                        : 'bg-white border border-border text-slate-600 font-medium hover:bg-slate-50'
                     }`}
                   >
                     Đang xử lý
@@ -531,10 +597,10 @@ function AccountPage() {
                   <button
                     type="button"
                     onClick={() => setOrderStatusFilter('COMPLETED')}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    className={`rounded-full px-4 py-2 text-sm transition-colors ${
                       orderStatusFilter === 'COMPLETED' 
-                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
-                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                        ? 'bg-slate-900 text-white shadow-sm font-semibold' 
+                        : 'bg-white border border-border text-slate-600 font-medium hover:bg-slate-50'
                     }`}
                   >
                     Hoàn thành
@@ -542,26 +608,25 @@ function AccountPage() {
                   <button
                     type="button"
                     onClick={() => setOrderStatusFilter('CANCELLED')}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    className={`rounded-full px-4 py-2 text-sm transition-colors ${
                       orderStatusFilter === 'CANCELLED' 
-                        ? 'bg-slate-900 text-white shadow-sm border-transparent' 
-                        : 'bg-white border border-border text-slate-600 hover:bg-slate-50'
+                        ? 'bg-slate-900 text-white shadow-sm font-semibold' 
+                        : 'bg-white border border-border text-slate-600 font-medium hover:bg-slate-50'
                     }`}
                   >
                     Đã hủy
                   </button>
                 </div>
 
-                {/* SỬA LỖI XÊ DỊCH: Chia 5 cột mỗi cột 20% đều nhau để bảng cố định tuyệt đối */}
                 <div className="overflow-x-auto rounded-2xl border border-border bg-white">
                   <table className="w-full text-left text-sm table-fixed min-w-[700px]">
                     <thead>
                       <tr className="border-b border-border bg-slate-50">
-                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">MÃ ĐƠN</th>
+                        <th className="w-[15%] whitespace-nowrap px-6 py-4 font-semibold text-ink">MÃ ĐƠN</th>
                         <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">NGÀY ĐẶT</th>
-                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">TRẠNG THÁI</th>
-                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink">TỔNG TIỀN</th>
-                        <th className="w-[20%] whitespace-nowrap px-6 py-4 font-semibold text-ink text-right">THAO TÁC</th>
+                        <th className="w-[25%] whitespace-nowrap px-6 py-4 font-semibold text-ink">TRẠNG THÁI</th>
+                        <th className="w-[25%] whitespace-nowrap px-6 py-4 font-semibold text-ink">TỔNG TIỀN</th>
+                        <th className="w-[15%] whitespace-nowrap px-6 py-4 font-semibold text-ink text-right">THAO TÁC</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -589,6 +654,10 @@ function AccountPage() {
                                 <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 border border-red-200">
                                   CANCELLED
                                 </span>
+                              ) : order.status === 'PROCESSING' ? (
+                                <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
+                                  PROCESSING
+                                </span>
                               ) : (
                                 <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200">
                                   {order.status || 'PENDING'}
@@ -613,6 +682,86 @@ function AccountPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB MỚI (UPDATE: GIAO DIỆN DẠNG LIST): SẢN PHẨM ĐÃ THÍCH */}
+          {activeTab === 'wishlist' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+               <div className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-ink">Sản phẩm đã thích</h2>
+                    <p className="mt-2 text-slate-700">Danh sách các sản phẩm bạn đã quan tâm và lưu lại.</p>
+                  </div>
+                </div>
+
+                {wishlist.length === 0 ? (
+                  <div className="rounded-2xl border border-border bg-slate-50 p-8 text-center">
+                    <p className="text-sm font-medium text-slate-500">Bạn chưa có sản phẩm yêu thích nào.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border border border-border rounded-2xl overflow-hidden bg-white">
+                    {wishlist.map((product, index) => {
+                      const price = Number(getProductPrice(product)) || 0;
+                      const productId = getProductId(product);
+                      const productName = getProductName(product) || 'Sản phẩm chưa đặt tên';
+                      const productImage = getProductImage(product);
+
+                      return (
+                        <div key={productId || index} className="flex flex-col sm:flex-row sm:items-center justify-between p-5 hover:bg-slate-50/50 transition gap-4">
+                          
+                          {/* Phía trái: Hình ảnh và Tên */}
+                          <Link to={`/products/${productId}`} className="flex items-center gap-4 flex-1">
+                            {productImage ? (
+                              <img 
+                                src={productImage} 
+                                alt={productName} 
+                                className="h-16 w-16 rounded-xl object-cover border border-border" 
+                              />
+                            ) : (
+                              <div className="h-16 w-16 rounded-xl bg-slate-100 border border-border flex items-center justify-center text-slate-400">
+                                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                              </div>
+                            )}
+                            <div>
+                              <p className="font-bold text-ink text-base hover:text-sky-700 transition line-clamp-1">
+                                {productName}
+                              </p>
+                              <p className="text-sm text-slate-500 mt-1">
+                                Đơn giá: <strong className="text-slate-900">{formatCurrency(price)}</strong>
+                              </p>
+                            </div>
+                          </Link>
+                          
+                          {/* Phía phải: Các nút thao tác */}
+                          <div className="flex items-center gap-3 sm:w-auto">
+                            <button
+                              type="button"
+                              onClick={() => handleAddToCart(product)}
+                              className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 shadow-sm whitespace-nowrap"
+                            >
+                              Thêm vào giỏ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                  e.preventDefault();
+                                  handleRemoveFromWishlist(productId);
+                              }}
+                              className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100 whitespace-nowrap"
+                            >
+                              Xóa bỏ
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -733,6 +882,10 @@ function AccountPage() {
                     ) : selectedOrder.status === 'CANCELLED' ? (
                       <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 border border-red-200">
                         CANCELLED
+                      </span>
+                    ) : selectedOrder.status === 'PROCESSING' ? (
+                      <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
+                        PROCESSING
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200">
@@ -879,7 +1032,7 @@ function AccountPage() {
       {/* === MODAL ĐA NĂNG: THÊM MỚI / SỬA THÔNG TIN ĐỊA CHỈ === */}
       {isAddressModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-border bg-white shadow-xl animate-in zoom-in-95 duration-200">
+          <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-border bg-white shadow-xl animate-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between border-b border-border bg-slate-50 px-6 py-4">
               <h3 className="text-xl font-bold text-ink">

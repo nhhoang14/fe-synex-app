@@ -202,7 +202,10 @@ function ContactPage() {
           </form>
         </section>
 
-        <FaqSection variant="contact" />
+        {/* THÊM KHOẢNG CÁCH CHO FAQ SECTION */}
+        <div className="mt-12">
+          <FaqSection variant="contact" />
+        </div>
       </div>
     </div>
   )
