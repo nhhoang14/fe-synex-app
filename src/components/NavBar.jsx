@@ -17,7 +17,7 @@ import RightOverlayPanel from './RightOverlayPanel'
 
 function NavBar() {
   const { isAuthenticated, isAdmin, logout } = useAuth()
-  const { items, totalItems, totalAmount, fetchCart, increase, decrease, remove } = useCart()
+  const { items, totalItems, totalAmount, fetchCart } = useCart()
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -122,33 +122,6 @@ function NavBar() {
     })
 
     setSearchOpen(false)
-  }
-
-  async function handleIncrease(productId) {
-    if (!isAuthenticated) return
-    try {
-      await increase(productId, 1)
-    } catch (error) {
-      setCartMessage(error.message)
-    }
-  }
-
-  async function handleDecrease(productId) {
-    if (!isAuthenticated) return
-    try {
-      await decrease(productId, 1)
-    } catch (error) {
-      setCartMessage(error.message)
-    }
-  }
-
-  async function handleRemove(productId) {
-    if (!isAuthenticated) return
-    try {
-      await remove(productId)
-    } catch (error) {
-      setCartMessage(error.message)
-    }
   }
 
   const filteredProducts = useMemo(() => {
@@ -277,7 +250,8 @@ function NavBar() {
                   ) : items.length === 0 ? (
                     <p className="text-sm text-slate-500 italic py-4">Giỏ hàng đang trống.</p>
                   ) : (
-                    items.map((item) => {
+                    // Lấy tối đa 5 sản phẩm
+                    items.slice(0, 5).map((item) => {
                       const product = getCartItemProduct(item)
                       const productId = getProductId(product)
                       const quantity = getCartItemQuantity(item)
@@ -286,7 +260,7 @@ function NavBar() {
                       return (
                         <article
                           key={item.id || `${productId}-${quantity}`}
-                          className="grid grid-cols-[64px_1fr_auto] gap-3 rounded-2xl border border-border bg-slate-50 p-2.5 items-center transition hover:border-slate-300"
+                          className="grid grid-cols-[64px_1fr] gap-4 rounded-2xl border border-border bg-slate-50 p-2.5 items-center transition hover:border-slate-300"
                         >
                           <img
                             src={getProductImage(product)}
@@ -294,41 +268,15 @@ function NavBar() {
                             className="h-16 w-16 rounded-xl object-cover border border-border bg-white"
                           />
 
-                          <div className="flex flex-col justify-center min-w-0">
+                          <div className="flex flex-col justify-center min-w-0 pr-1">
                             <h4 className="font-semibold text-ink text-sm truncate" title={getProductName(product)}>
                               {getProductName(product)}
                             </h4>
                             <p className="mt-0.5 text-sm font-bold text-red-500">{formatCurrency(price)}</p>
-
-                            <div className="mt-2 flex items-center gap-2 rounded-full border border-border bg-white px-2 py-0.5 w-fit shadow-sm">
-                              <button
-                                type="button"
-                                onClick={() => handleDecrease(productId)}
-                                className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-slate-100 text-slate-600 font-medium"
-                              >
-                                -
-                              </button>
-                              <span className="min-w-[16px] text-center text-xs font-bold text-ink">
-                                {quantity}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleIncrease(productId)}
-                                className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-slate-100 text-slate-600 font-medium"
-                              >
-                                +
-                              </button>
-                            </div>
+                            <p className="mt-1 text-xs font-medium text-slate-500">
+                              Số lượng: {quantity}
+                            </p>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleRemove(productId)}
-                            className="flex h-8 w-8 items-center justify-center self-start rounded-full text-slate-400 hover:bg-red-50 hover:text-red-500 transition"
-                            title="Xóa sản phẩm"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">delete</span>
-                          </button>
                         </article>
                       )
                     })
@@ -338,26 +286,17 @@ function NavBar() {
                 {/* Footer Giỏ hàng */}
                 {isAuthenticated && items.length > 0 && (
                   <div className="border-t border-border mt-4 pt-4 shrink-0">
-                    <div className="flex items-center justify-between text-lg font-bold text-ink mb-4">
-                      <span>Tổng tiền:</span>
-                      <strong className="text-red-500">{formatCurrency(totalAmount)}</strong>
-                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-600 pl-2">
+                        {totalItems} Sản phẩm trong giỏ
+                      </span>
 
-                    <div className="grid gap-2 grid-cols-2">
                       <Link
                         to={ROUTES.CART}
                         onClick={() => setCartDropdownOpen(false)}
-                        className="rounded-full border border-slate-900 bg-white px-4 py-2.5 text-center text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+                        className="rounded-full bg-slate-900 px-6 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800"
                       >
                         Xem giỏ hàng
-                      </Link>
-
-                      <Link
-                        to={ROUTES.CHECKOUT}
-                        onClick={() => setCartDropdownOpen(false)}
-                        className="rounded-full bg-slate-900 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-slate-800"
-                      >
-                        Thanh toán
                       </Link>
                     </div>
                   </div>

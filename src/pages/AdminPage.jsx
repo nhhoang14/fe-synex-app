@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ROUTES } from '../constants'
+import { useAuth } from '../contexts/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
-import { getBrands, getCategories, getProducts } from '../services/catalogService'
+import { getProducts } from '../services/catalogService'
 
 const QUICK_ACTIONS = [
   {
@@ -34,6 +35,7 @@ const RECENT_NOTES = [
 function AdminPage() {
   usePageTitle('Quản trị - Synex')
 
+  const { token } = useAuth()
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [brands, setBrands] = useState([])
@@ -46,20 +48,18 @@ function AdminPage() {
 
   function safeText(value, fallback = '') {
     if (value === null || value === undefined) return fallback
-
     if (typeof value === 'object') {
       if ('name' in value && value.name !== null && value.name !== undefined) {
         return String(value.name)
       }
-
       return fallback
     }
-
     return String(value)
   }
 
   useEffect(() => {
     let mounted = true
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
     async function bootstrapDashboard() {
       setLoading(true)
@@ -72,14 +72,16 @@ function AdminPage() {
       }
 
       try {
-        const categoryData = await getCategories()
+        const catRes = await fetch(`${API_URL}/api/admin/categories`, { headers: { Authorization: `Bearer ${token}` } })
+        const categoryData = await catRes.json()
         if (mounted) setCategories(toObjectArray(categoryData))
       } catch {
         if (mounted) setCategories([])
       }
 
       try {
-        const brandData = await getBrands()
+        const brandRes = await fetch(`${API_URL}/api/admin/brands`, { headers: { Authorization: `Bearer ${token}` } })
+        const brandData = await brandRes.json()
         if (mounted) setBrands(toObjectArray(brandData))
       } catch {
         if (mounted) setBrands([])
@@ -88,48 +90,32 @@ function AdminPage() {
       if (mounted) setLoading(false)
     }
 
-    bootstrapDashboard()
+    if (token) bootstrapDashboard()
 
-    return () => {
-      mounted = false
-    }
-  }, [])
+    return () => { mounted = false }
+  }, [token])
 
   const categoryCount = useMemo(() => {
     if (categories.length > 0) return categories.length
-
     const categoryNames = new Set()
-
     products.forEach((product) => {
-      const categoryName =
-        product?.category?.name ||
-        product?.categoryName ||
-        product?.category
-
+      const categoryName = product?.category?.name || product?.categoryName || product?.category
       const normalizedName = safeText(categoryName)
-
-      if (normalizedName) {
-        categoryNames.add(normalizedName)
-      }
+      if (normalizedName) categoryNames.add(normalizedName)
     })
-
     return categoryNames.size
   }, [categories, products])
 
   const lowStockCount = useMemo(
-    () =>
-      products.filter((product) => {
-        const stock = Number(product?.stockQuantity || 0)
+    () => products.filter((product) => {
+        const stock = Number(product?.stockQuantity || product?.stock || 0)
         return stock > 0 && stock < 10
       }).length,
     [products],
   )
 
   const totalStock = useMemo(
-    () =>
-      products.reduce((sum, product) => {
-        return sum + Number(product?.stockQuantity || 0)
-      }, 0),
+    () => products.reduce((sum, product) => sum + Number(product?.stockQuantity || product?.stock || 0), 0),
     [products],
   )
 
@@ -284,13 +270,11 @@ function AdminPage() {
 
             <tbody className="divide-y divide-border">
               {featuredProducts.map((product, index) => {
-                const stock = Number(product?.stockQuantity || 0)
-
+                const stock = Number(product?.stockQuantity || product?.stock || 0)
                 const category = safeText(
                   product?.category?.name || product?.categoryName || product?.category,
                   'Chưa phân loại',
                 )
-
                 const productName = safeText(
                   product?.name || product?.productName,
                   'Sản phẩm không tên',
@@ -301,21 +285,20 @@ function AdminPage() {
                 return (
                   <tr
                     key={product.id || product.productId || productName || `product-${index}`}
-                    className="align-top"
+                    className="align-top hover:bg-slate-50"
                   >
-                    <td className="px-4 py-4 text-ink">{productName}</td>
+                    <td className="px-4 py-4 text-ink font-medium">{productName}</td>
                     <td className="px-4 py-4 text-slate-700">{category}</td>
                     <td className="px-4 py-4 text-slate-700">
                       {Number(product.price || 0).toLocaleString('vi-VN')} đ
                     </td>
-                    <td className="px-4 py-4 text-slate-700">{stock}</td>
+                    <td className="px-4 py-4 text-slate-700 font-bold">{stock}</td>
                     <td className="px-4 py-4">
                       <span
                         className={[
                           'inline-flex rounded-full px-3 py-1 text-xs font-semibold',
-                          stock < 10
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800',
+                          stock === 0 ? 'bg-red-100 text-red-800' :
+                          stock < 10 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800',
                         ].join(' ')}
                       >
                         {statusLabel}
@@ -328,7 +311,7 @@ function AdminPage() {
               {featuredProducts.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-slate-600">
-                    Chưa có dữ liệu sản phẩm để hiển thị.
+                    {loading ? 'Đang tải dữ liệu sản phẩm...' : 'Chưa có dữ liệu sản phẩm để hiển thị.'}
                   </td>
                 </tr>
               )}

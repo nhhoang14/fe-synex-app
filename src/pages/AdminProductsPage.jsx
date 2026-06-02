@@ -4,40 +4,53 @@ import { ROUTES } from '../constants'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProducts } from '../services/catalogService'
 import { formatCurrency, getProductName, getProductPrice } from '../utils/normalizers'
+import { useAuth } from '../contexts/AuthContext'
 
 function AdminProductsPage() {
   usePageTitle('Quản lý sản phẩm - Synex')
 
+  const { token } = useAuth()
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
 
+  async function fetchProductsList() {
+    setLoading(true)
+    try {
+      const data = await getProducts()
+      setProducts(Array.isArray(data) ? data : [])
+    } catch {
+      setProducts([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    let active = true
-
-    async function bootstrapProducts() {
-      setLoading(true)
-
-      try {
-        const data = await getProducts()
-        if (!active) return
-        setProducts(Array.isArray(data) ? data : [])
-      } catch {
-        if (!active) return
-        setProducts([])
-      } finally {
-        if (active) setLoading(false)
-      }
-    }
-
-    bootstrapProducts()
-
-    return () => {
-      active = false
-    }
+    fetchProductsList()
   }, [])
 
+  async function handleDeleteProduct(id) {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa sản phẩm này?')) return
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const response = await fetch(`${API_URL}/api/admin/products/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+      if (!response.ok) throw new Error('Xóa sản phẩm thất bại')
+      
+      // Load lại danh sách sau khi xóa
+      fetchProductsList()
+    } catch (error) {
+      alert(error.message)
+    }
+  }
+
   const totalStock = useMemo(
-    () => products.reduce((sum, product) => sum + Number(product?.stockQuantity || 0), 0),
+    () => products.reduce((sum, product) => sum + Number(product?.stockQuantity || product?.stock || 0), 0),
     [products],
   )
 
@@ -91,20 +104,22 @@ function AdminProductsPage() {
                 <th className="px-4 py-3">Giá</th>
                 <th className="px-4 py-3">Tồn kho</th>
                 <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-4 py-3">Hành động</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-border">
               {products.map((product, index) => {
-                const stock = Number(product?.stockQuantity || 0)
+                const stock = Number(product?.stockQuantity || product?.stock || 0)
                 const name = getProductName(product)
+                const id = product.id || product.productId
 
                 return (
                   <tr
-                    key={product.id || product.productId || name || `admin-product-${index}`}
-                    className="align-top"
+                    key={id || name || `admin-product-${index}`}
+                    className="align-top hover:bg-slate-50"
                   >
-                    <td className="px-4 py-4 text-ink">{name}</td>
+                    <td className="px-4 py-4 text-ink font-medium">{name}</td>
 
                     <td className="px-4 py-4 text-slate-700">
                       {formatCurrency(getProductPrice(product))}
@@ -113,7 +128,22 @@ function AdminProductsPage() {
                     <td className="px-4 py-4 text-slate-700">{stock}</td>
 
                     <td className="px-4 py-4 text-slate-700">
-                      {stock === 0 ? 'Hết hàng' : stock < 10 ? 'Sắp hết' : 'Ổn định'}
+                      {stock === 0 ? (
+                        <span className="text-red-600 font-medium">Hết hàng</span>
+                      ) : stock < 10 ? (
+                        <span className="text-amber-600 font-medium">Sắp hết</span>
+                      ) : (
+                        <span className="text-green-600 font-medium">Ổn định</span>
+                      )}
+                    </td>
+                    
+                    <td className="px-4 py-4 text-slate-700">
+                      <button 
+                        onClick={() => handleDeleteProduct(id)}
+                        className="text-red-500 hover:text-red-700 transition font-semibold"
+                      >
+                        Xóa
+                      </button>
                     </td>
                   </tr>
                 )
@@ -121,8 +151,8 @@ function AdminProductsPage() {
 
               {products.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-slate-600">
-                    Chưa có dữ liệu sản phẩm.
+                  <td colSpan={5} className="px-4 py-6 text-center text-slate-600">
+                    {loading ? 'Đang tải dữ liệu...' : 'Chưa có dữ liệu sản phẩm.'}
                   </td>
                 </tr>
               )}
