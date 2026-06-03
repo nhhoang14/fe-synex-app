@@ -23,8 +23,10 @@ function CartPage() {
   
   // State quản lý danh sách ID các sản phẩm được tick chọn
   const [selectedItemIds, setSelectedItemIds] = useState([])
-
-  const shippingFee = 0
+  
+  // State quản lý mã khuyến mãi (UI demo)
+  const [promoCode, setPromoCode] = useState('')
+  const [discountAmount, setDiscountAmount] = useState(0)
 
   // Lấy ra tất cả ID hợp lệ trong giỏ hàng để dùng cho nút "Chọn tất cả"
   const allItemIds = useMemo(() => {
@@ -47,7 +49,8 @@ function CartPage() {
     }, 0)
   }, [items, selectedItemIds])
 
-  const grandTotal = selectedTotalAmount + shippingFee
+  // Tính tổng tạm tính cuối cùng (sau khi trừ khuyến mãi)
+  const finalTotal = Math.max(0, selectedTotalAmount - discountAmount)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -70,6 +73,23 @@ function CartPage() {
       setSelectedItemIds([])
     } else {
       setSelectedItemIds(allItemIds)
+    }
+  }
+
+  // Hàm xử lý áp dụng mã khuyến mãi (Giả lập UI)
+  function handleApplyPromoCode() {
+    if (!promoCode.trim()) {
+      alert('Vui lòng nhập mã khuyến mãi!')
+      return
+    }
+    // Giả lập logic: Nếu mã là "SYNEX10", giảm 10% tổng đơn, tối đa 500k
+    if (promoCode.trim().toUpperCase() === 'SYNEX10') {
+      const discount = Math.min(selectedTotalAmount * 0.1, 500000)
+      setDiscountAmount(discount)
+      alert('Áp dụng mã khuyến mãi thành công!')
+    } else {
+      setDiscountAmount(0)
+      alert('Mã khuyến mãi không hợp lệ hoặc đã hết hạn.')
     }
   }
 
@@ -117,7 +137,7 @@ function CartPage() {
         </p>
       </section>
 
-      <section className="grid items-start gap-4 lg:grid-cols-[1fr_340px]">
+      <section className="grid items-start gap-4 lg:grid-cols-[1fr_360px]">
         <section className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <h2 className="text-2xl font-bold text-ink">Sản phẩm trong giỏ</h2>
@@ -143,7 +163,15 @@ function CartPage() {
               <table className="min-w-full text-left">
                 <thead>
                   <tr className="bg-slate-50 text-sm uppercase tracking-wide text-slate-500">
-                    <th className="px-4 py-3 w-12 text-center"></th>
+                    <th className="px-4 py-3 w-12 text-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 cursor-pointer rounded border-gray-300 text-slate-900 focus:ring-slate-900"
+                        checked={selectedItemIds.length === allItemIds.length && allItemIds.length > 0}
+                        onChange={handleSelectAll}
+                        title="Chọn tất cả"
+                      />
+                    </th>
                     <th className="px-4 py-3">Sản phẩm</th>
                     <th className="px-4 py-3">Đơn giá</th>
                     <th className="px-4 py-3">Số lượng</th>
@@ -157,6 +185,7 @@ function CartPage() {
                     const productId = getProductId(product)
                     const quantity = getCartItemQuantity(item)
                     const price = getProductPrice(product)
+                    const productName = getProductName(product)
                     const uniqueId = item.id || productId
 
                     return (
@@ -170,14 +199,23 @@ function CartPage() {
                           />
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex items-center gap-3">
+                          <Link 
+                            to={`/products/${productId}`} 
+                            className="flex items-center gap-3 group transition-opacity hover:opacity-80"
+                          >
                             <img
                               src={getProductImage(product)}
-                              alt={getProductName(product)}
-                              className="h-14 w-14 rounded-2xl object-cover"
+                              alt={productName}
+                              className="h-14 w-14 rounded-2xl object-cover shrink-0"
                             />
-                            <span className="font-medium text-ink">{getProductName(product)}</span>
-                          </div>
+                            {/* line-clamp-2 giúp text chỉ hiện tối đa 2 dòng, tự thêm "..." nếu quá dài */}
+                            <span 
+                              className="font-medium text-ink group-hover:text-sky-700 transition-colors line-clamp-2"
+                              title={productName}
+                            >
+                              {productName}
+                            </span>
+                          </Link>
                         </td>
                         <td className="px-4 py-4 text-slate-700">{formatCurrency(price)}</td>
                         <td className="px-4 py-4">
@@ -215,60 +253,71 @@ function CartPage() {
                     )
                   })}
                 </tbody>
-                
-                <tfoot className="border-t border-border bg-slate-50">
-                  <tr>
-                    <td className="px-4 py-4 align-middle text-center">
-                      <input
-                        type="checkbox"
-                        id="selectAllBottom"
-                        className="h-4 w-4 cursor-pointer rounded border-gray-300 text-slate-900 focus:ring-slate-900"
-                        checked={selectedItemIds.length === allItemIds.length && allItemIds.length > 0}
-                        onChange={handleSelectAll}
-                      />
-                    </td>
-                    <td colSpan="5" className="px-4 py-4">
-                      <label htmlFor="selectAllBottom" className="cursor-pointer text-sm font-semibold text-ink hover:text-slate-700">
-                        Chọn tất cả ({items.length} sản phẩm)
-                      </label>
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           )}
         </section>
 
-        {/* THÊM TÍNH NĂNG TRƯỢT THEO BẰNG "sticky" và "top-24" */}
+        {/* BẢNG TÓM TẮT ĐƠN HÀNG (STICKY) */}
         <aside className="sticky top-24 h-fit rounded-[28px] border border-border bg-white p-6 shadow-sm">
-          <h3 className="text-2xl font-bold text-ink">Tóm tắt đơn hàng</h3>
+          <h3 className="text-2xl font-bold text-ink font-heading">Tóm tắt đơn hàng</h3>
 
-          <div className="mt-5 space-y-3">
-            <div className="flex items-center justify-between text-slate-700">
-              <span>Tạm tính</span>
+          {/* Ô Nhập mã khuyến mãi */}
+          <div className="mt-6">
+            <label className="text-sm font-bold text-ink block mb-3">
+              Nhập mã khuyến mãi
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+                placeholder="Nhập mã..."
+                className="w-full min-w-0 flex-1 rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              />
+              <button
+                type="button"
+                onClick={handleApplyPromoCode}
+                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 whitespace-nowrap"
+              >
+                Áp dụng
+              </button>
+            </div>
+          </div>
+
+          <hr className="my-5 border-dashed border-border" />
+
+          {/* Chi tiết giá */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-slate-600 font-medium">
+              <span>Đơn hàng</span>
               <strong>{formatCurrency(selectedTotalAmount)}</strong>
             </div>
-            <div className="flex items-center justify-between text-slate-700">
-              <span>Phí vận chuyển</span>
-              <strong>{formatCurrency(shippingFee)}</strong>
+            <div className="flex items-center justify-between text-slate-600 font-medium">
+              <span>Giảm</span>
+              <strong>- {formatCurrency(discountAmount)}</strong>
             </div>
           </div>
 
-          <div className="mt-5 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4 text-lg font-bold text-ink">
-            <span>Tổng cộng</span>
-            <strong className="text-red-600">{formatCurrency(grandTotal)}</strong>
+          <hr className="my-5 border-dashed border-border" />
+
+          {/* Tổng cộng */}
+          <div className="flex items-center justify-between text-lg font-bold text-ink">
+            <span>Tạm tính</span>
+            <strong className="text-red-600 text-xl">{formatCurrency(finalTotal)}</strong>
           </div>
 
-          <div className="mt-5 flex flex-col gap-3">
+          {/* Nút thanh toán */}
+          <div className="mt-6">
             <Link
               to={isAuthenticated && selectedItemIds.length > 0 ? ROUTES.CHECKOUT : ROUTES.LOGIN}
-              className={`rounded-full px-5 py-3 text-center font-semibold transition ${
+              className={`flex w-full items-center justify-center rounded-full px-5 py-3.5 text-center text-sm font-bold transition ${
                 selectedItemIds.length > 0 
-                  ? 'bg-slate-900 text-white hover:bg-slate-800' 
-                  : 'bg-slate-300 text-slate-500 cursor-not-allowed pointer-events-none'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' 
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed pointer-events-none'
               }`}
             >
-              Tiến hành thanh toán
+              Tiếp tục thanh toán
             </Link>
           </div>
         </aside>

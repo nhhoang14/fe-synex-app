@@ -21,8 +21,17 @@ function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
+  
+  // State quản lý danh sách sản phẩm đã thích
+  const [likedIds, setLikedIds] = useState([])
 
   usePageTitle(product ? `${getProductName(product)} - Synex` : 'Chi tiết sản phẩm - Synex')
+
+  // Hàm tải dữ liệu danh sách yêu thích
+  function loadLikedIds() {
+    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
+    setLikedIds(wishlist.map((item) => getProductId(item)).filter(Boolean))
+  }
 
   useEffect(() => {
     let mounted = true
@@ -55,6 +64,16 @@ function ProductDetailPage() {
       mounted = false
     }
   }, [id])
+
+  // Theo dõi và đồng bộ giỏ hàng yêu thích
+  useEffect(() => {
+    loadLikedIds()
+    window.addEventListener('wishlistUpdated', loadLikedIds)
+
+    return () => {
+      window.removeEventListener('wishlistUpdated', loadLikedIds)
+    }
+  }, [])
 
   const relatedProducts = useMemo(() => {
     if (!product || !Array.isArray(allProducts)) return []
@@ -93,6 +112,32 @@ function ProductDetailPage() {
     }
   }
 
+  // Hàm xử lý Thích / Bỏ thích chung cho mọi sản phẩm
+  function handleToggleWishlist(event, itemToToggle) {
+    if (event) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    const productId = getProductId(itemToToggle)
+    if (!productId) return
+
+    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
+    const exists = wishlist.some((item) => getProductId(item) === productId)
+
+    let newWishlist
+
+    if (exists) {
+      newWishlist = wishlist.filter((item) => getProductId(item) !== productId)
+    } else {
+      newWishlist = [...wishlist, itemToToggle]
+    }
+
+    localStorage.setItem('wishlist', JSON.stringify(newWishlist))
+    setLikedIds(newWishlist.map((item) => getProductId(item)).filter(Boolean))
+    window.dispatchEvent(new Event('wishlistUpdated'))
+  }
+
   if (loading) {
     return (
       <section className="rounded-[28px] border border-border bg-white p-8 shadow-sm">
@@ -118,6 +163,7 @@ function ProductDetailPage() {
     )
   }
 
+  const productId = getProductId(product)
   const productName = getProductName(product)
   const price = getProductPrice(product)
   const image = getProductImage(product)
@@ -134,6 +180,8 @@ function ProductDetailPage() {
       : typeof product?.quantity === 'number'
         ? product.quantity
         : null
+        
+  const isMainProductLiked = likedIds.includes(productId)
 
   return (
     <div className="space-y-6">
@@ -151,7 +199,19 @@ function ProductDetailPage() {
 
       <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="overflow-hidden rounded-[28px] bg-slate-50">
+          <div className="relative overflow-hidden rounded-[28px] bg-slate-50">
+            {/* Nút thả tim của Sản phẩm chính */}
+            <button
+              type="button"
+              onClick={(e) => handleToggleWishlist(e, product)}
+              className="absolute right-5 top-5 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-white/90 text-2xl shadow-sm transition hover:scale-105"
+              aria-label="Thích sản phẩm"
+            >
+              <span className={isMainProductLiked ? 'text-red-500' : 'text-slate-500'}>
+                {isMainProductLiked ? '♥' : '♡'}
+              </span>
+            </button>
+            
             <img
               src={image}
               alt={productName}
@@ -193,7 +253,7 @@ function ProductDetailPage() {
 
               <div>
                 <p className="text-sm text-slate-500">Mã sản phẩm</p>
-                <p className="mt-1 font-semibold text-ink">{getProductId(product) || 'N/A'}</p>
+                <p className="mt-1 font-semibold text-ink">{productId || 'N/A'}</p>
               </div>
             </div>
 
@@ -241,12 +301,25 @@ function ProductDetailPage() {
             {relatedProducts.map((item) => {
               const itemId = getProductId(item)
               const itemName = getProductName(item)
+              const isLiked = likedIds.includes(itemId)
 
               return (
                 <article
                   key={itemId}
-                  className="overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
+                  className="group relative overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
                 >
+                  {/* Nút thả tim của Sản phẩm liên quan */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleWishlist(e, item)}
+                    className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 text-2xl opacity-0 shadow-sm transition hover:scale-105 group-hover:opacity-100"
+                    aria-label="Thích sản phẩm"
+                  >
+                    <span className={isLiked ? 'text-red-500' : 'text-slate-500'}>
+                      {isLiked ? '♥' : '♡'}
+                    </span>
+                  </button>
+
                   <Link to={`/products/${itemId}`} className="block">
                     <img
                       src={getProductImage(item)}
@@ -256,8 +329,8 @@ function ProductDetailPage() {
                   </Link>
 
                   <div className="flex flex-col p-5">
-                    <h3 className="min-h-[56px] text-lg font-bold leading-snug text-ink">
-                      <Link to={`/products/${itemId}`} className="hover:text-sky-700">
+                    <h3 className="min-h-[56px] text-lg font-bold leading-snug text-ink line-clamp-2">
+                      <Link to={`/products/${itemId}`} className="hover:text-sky-700" title={itemName}>
                         {itemName}
                       </Link>
                     </h3>
