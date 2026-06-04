@@ -69,6 +69,8 @@ function AccountPage() {
   const [editingAddressId, setEditingAddressId] = useState(null)
 
   const [message, setMessage] = useState('')
+  const [progress, setProgress] = useState(100) // State cho Toast Notification
+
   const [profile, setProfile] = useState(null)
   const [profileForm, setProfileForm] = useState({
     fullName: '',
@@ -91,6 +93,19 @@ function AccountPage() {
 
   const [addresses, setAddresses] = useState([])
   const [orders, setOrders] = useState([])
+
+  // Tự động ẩn thông báo sau 3 giây và chạy thanh progress (Toast Notification)
+  useEffect(() => {
+    if (message) {
+      setProgress(100)
+      const animTimer = setTimeout(() => setProgress(0), 50)
+      const closeTimer = setTimeout(() => setMessage(''), 3000)
+      return () => {
+        clearTimeout(animTimer)
+        clearTimeout(closeTimer)
+      }
+    }
+  }, [message])
 
   const syncProfileForm = useCallback((nextProfile) => {
     if (!nextProfile) return
@@ -286,7 +301,7 @@ function AccountPage() {
     try {
       await deleteAddress(token, addressId)
       await reloadAddresses()
-      setMessage('Đã xóa địa chỉ')
+      setMessage('Đã xóa địa chỉ thành công')
     } catch (error) {
       setMessage(error.message || 'Xóa địa chỉ thất bại')
     }
@@ -355,12 +370,32 @@ function AccountPage() {
     }
   ]
 
+  const isSuccess = message.toLowerCase().includes('đã') || message.toLowerCase().includes('thành công')
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-8 relative">
+      
+      {/* TOAST THÔNG BÁO NỔI DẠNG OVERLAY */}
       {message && (
-        <p className="mb-6 rounded-2xl border border-border bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
-          {message}
-        </p>
+        <div className="fixed top-8 left-1/2 z-[9999] flex min-w-[320px] -translate-x-1/2 items-center justify-between overflow-hidden rounded-lg border border-slate-100 bg-white px-4 py-3 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-5 w-5 items-center justify-center rounded-full text-white ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}>
+              {isSuccess ? (
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+              ) : (
+                <span className="text-xs font-bold">!</span>
+              )}
+            </div>
+            <span className="text-sm font-medium text-slate-700">{message}</span>
+          </div>
+          <button onClick={() => setMessage('')} className="ml-6 text-slate-400 hover:text-slate-600 transition">
+            ✕
+          </button>
+          <div 
+            className={`absolute bottom-0 left-0 h-1 transition-all duration-[3000ms] ease-linear ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`} 
+            style={{ width: `${progress}%` }} 
+          />
+        </div>
       )}
 
       <div className="flex flex-col gap-6 lg:flex-row">

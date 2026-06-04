@@ -74,6 +74,10 @@ function HomePage() {
   const [categories, setCategories] = useState([])
   const [categoryStart, setCategoryStart] = useState(0)
 
+  // State quản lý Toast Notification
+  const [feedback, setFeedback] = useState('')
+  const [progress, setProgress] = useState(100)
+
   useEffect(() => {
     let mounted = true
 
@@ -101,6 +105,19 @@ function HomePage() {
     }
   }, [])
 
+  // Tự động ẩn thông báo sau 3 giây và chạy thanh progress
+  useEffect(() => {
+    if (feedback) {
+      setProgress(100)
+      const animTimer = setTimeout(() => setProgress(0), 50)
+      const closeTimer = setTimeout(() => setFeedback(''), 3000)
+      return () => {
+        clearTimeout(animTimer)
+        clearTimeout(closeTimer)
+      }
+    }
+  }, [feedback])
+
   const fallbackCategories = [
     { id: 1, name: 'iPhone Cases' },
     { id: 2, name: 'Charging' },
@@ -122,8 +139,34 @@ function HomePage() {
     setCategoryStart((prev) => Math.min(prev + 1, maxCategoryStart))
   }
 
+  const isSuccess = feedback.toLowerCase().includes('đã') || feedback.toLowerCase().includes('thành công')
+
   return (
-    <div className="pb-10">
+    <div className="pb-10 relative">
+
+      {/* TOAST THÔNG BÁO NỔI DẠNG OVERLAY CHUNG CHO TRANG CHỦ */}
+      {feedback && (
+        <div className="fixed top-8 left-1/2 z-[9999] flex min-w-[320px] -translate-x-1/2 items-center justify-between overflow-hidden rounded-lg border border-slate-100 bg-white px-4 py-3 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-5 w-5 items-center justify-center rounded-full text-white ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}>
+              {isSuccess ? (
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+              ) : (
+                <span className="text-xs font-bold">!</span>
+              )}
+            </div>
+            <span className="text-sm font-medium text-slate-700">{feedback}</span>
+          </div>
+          <button onClick={() => setFeedback('')} className="ml-6 text-slate-400 hover:text-slate-600 transition">
+            ✕
+          </button>
+          <div 
+            className={`absolute bottom-0 left-0 h-1 transition-all duration-[3000ms] ease-linear ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`} 
+            style={{ width: `${progress}%` }} 
+          />
+        </div>
+      )}
+
       <section
         className="relative -mt-[20px] left-1/2 right-1/2 ml-[-50vw] mr-[-50vw] w-screen min-h-[500px] bg-cover bg-center bg-no-repeat"
         style={{
@@ -247,6 +290,7 @@ function HomePage() {
               key={product.id || product.productId}
               product={product}
               compact
+              onNotify={(msg) => setFeedback(msg)} // Truyền hàm lên thẻ
             />
           ))}
         </div>

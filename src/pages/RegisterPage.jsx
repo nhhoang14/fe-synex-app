@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import FormField from '../components/FormField'
 import { ROUTES } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
@@ -10,12 +9,23 @@ function RegisterPage() {
 
   const navigate = useNavigate()
   const { register } = useAuth()
+  
   const [form, setForm] = useState({
+    username: '',
     fullName: '',
     email: '',
+    phone: '',
     password: '',
     confirmPassword: '',
   })
+  
+  // State quản lý ẩn/hiện mật khẩu
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  
+  // State checkbox xác nhận
+  const [isConfirmed, setIsConfirmed] = useState(false)
+
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -29,15 +39,23 @@ function RegisterPage() {
     setError('')
     setSuccess('')
 
+    if (!isConfirmed) {
+      setError('Vui lòng xác nhận các thông tin trên là chính xác.')
+      return
+    }
+
     if (form.password !== form.confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp')
+      setError('Mật khẩu xác nhận không khớp.')
       return
     }
 
     try {
+      // Truyền thêm các trường mới vào hàm register
       await register({
+        username: form.username.trim(),
         fullName: form.fullName.trim(),
         email: form.email.trim(),
+        phoneNumber: form.phone.trim(),
         password: form.password,
       })
       setSuccess('Đăng ký thành công! Vui lòng đăng nhập.')
@@ -53,63 +71,148 @@ function RegisterPage() {
 
   return (
     <form 
-      className="space-y-4 rounded-[28px] border border-border bg-white p-8 shadow-sm animate-in fade-in duration-300" 
+      className="space-y-4 rounded-[28px] border border-border bg-white p-8 shadow-sm animate-in fade-in duration-300 sm:p-10" 
       onSubmit={handleSubmit}
     >
-      <h1 className="text-4xl font-bold tracking-tight text-ink">Đăng ký</h1>
+      <div className="text-center mb-8">
+        <h1 className="text-2xl font-bold tracking-tight text-ink font-heading sm:text-3xl">Đăng ký tài khoản</h1>
+      </div>
 
-      {/* Đã thêm dấu tiếng Việt chuẩn cho các nhãn FormField */}
-      <FormField
-        label="Họ và tên"
-        name="fullName"
-        type="text"
-        value={form.fullName}
-        onChange={handleChange}
-        required
-      />
+      <div className="space-y-4">
+        {/* Tên đăng nhập */}
+        <div className="relative flex items-center">
+          <span className="material-symbols-outlined absolute left-4 text-slate-400 text-[20px]">person</span>
+          <input
+            type="text"
+            name="username"
+            value={form.username}
+            onChange={handleChange}
+            placeholder="Tên đăng nhập"
+            required
+            className="w-full rounded-full border border-border bg-white py-3 pl-12 pr-4 text-sm font-medium text-ink placeholder:text-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+        </div>
 
-      <FormField
-        label="Email"
-        name="email"
-        type="email"
-        value={form.email}
-        onChange={handleChange}
-        required
-      />
+        {/* Họ và tên */}
+        <div className="relative flex items-center">
+          <span className="material-symbols-outlined absolute left-4 text-slate-400 text-[20px]">account_circle</span>
+          <input
+            type="text"
+            name="fullName"
+            value={form.fullName}
+            onChange={handleChange}
+            placeholder="Họ và tên"
+            required
+            className="w-full rounded-full border border-border bg-white py-3 pl-12 pr-4 text-sm font-medium text-ink placeholder:text-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+        </div>
 
-      <FormField
-        label="Mật khẩu"
-        name="password"
-        type="password"
-        value={form.password}
-        onChange={handleChange}
-        required
-      />
+        {/* Email */}
+        <div className="relative flex items-center">
+          <span className="material-symbols-outlined absolute left-4 text-slate-400 text-[20px]">mail</span>
+          <input
+            type="email"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="Email"
+            required
+            className="w-full rounded-full border border-border bg-white py-3 pl-12 pr-4 text-sm font-medium text-ink placeholder:text-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+        </div>
 
-      <FormField
-        label="Xác nhận mật khẩu"
-        name="confirmPassword"
-        type="password"
-        value={form.confirmPassword}
-        onChange={handleChange}
-        required
-      />
+        {/* Số điện thoại */}
+        <div className="relative flex items-center">
+          <span className="material-symbols-outlined absolute left-4 text-slate-400 text-[20px]">call</span>
+          <input
+            type="tel"
+            name="phone"
+            value={form.phone}
+            onChange={handleChange}
+            placeholder="Số điện thoại"
+            required
+            className="w-full rounded-full border border-border bg-white py-3 pl-12 pr-4 text-sm font-medium text-ink placeholder:text-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+        </div>
 
+        {/* Mật khẩu */}
+        <div className="relative flex items-center">
+          <span className="material-symbols-outlined absolute left-4 text-slate-400 text-[20px]">lock</span>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            name="password"
+            value={form.password}
+            onChange={handleChange}
+            placeholder="Mật khẩu"
+            required
+            className="w-full rounded-full border border-border bg-white py-3 pl-12 pr-12 text-sm font-medium text-ink placeholder:text-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-4 flex items-center text-slate-400 hover:text-slate-600 transition"
+          >
+            <span className="material-symbols-outlined text-[20px]">
+              {showPassword ? 'visibility' : 'visibility_off'}
+            </span>
+          </button>
+        </div>
+
+        {/* Xác nhận mật khẩu */}
+        <div className="relative flex items-center">
+          <span className="material-symbols-outlined absolute left-4 text-slate-400 text-[20px]">lock</span>
+          <input
+            type={showConfirmPassword ? 'text' : 'password'}
+            name="confirmPassword"
+            value={form.confirmPassword}
+            onChange={handleChange}
+            placeholder="Xác nhận mật khẩu"
+            required
+            className="w-full rounded-full border border-border bg-white py-3 pl-12 pr-12 text-sm font-medium text-ink placeholder:text-slate-500 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-4 flex items-center text-slate-400 hover:text-slate-600 transition"
+          >
+            <span className="material-symbols-outlined text-[20px]">
+              {showConfirmPassword ? 'visibility' : 'visibility_off'}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Checkbox xác nhận */}
+      <label className="flex items-center gap-2 cursor-pointer pt-2">
+        <input 
+          type="checkbox" 
+          checked={isConfirmed}
+          onChange={(e) => setIsConfirmed(e.target.checked)}
+          className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500" 
+        />
+        <span className="text-sm font-medium text-slate-600">
+          Tôi xác nhận các thông tin trên là chính xác
+        </span>
+      </label>
+
+      {/* Hiển thị thông báo */}
+      {error && <p className="text-sm font-medium text-red-600 text-center">{error}</p>}
+      {success && <p className="text-sm font-medium text-emerald-700 text-center">{success}</p>}
+
+      {/* Nút Đăng ký */}
       <button 
         type="submit" 
-        className="w-full rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800 active:scale-[0.99]"
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-3.5 font-semibold text-white transition hover:bg-slate-800 active:scale-[0.99] shadow-sm"
       >
-        Tạo tài khoản
+        <span className="material-symbols-outlined text-[20px]">person_add</span>
+        Đăng ký
       </button>
 
-      {/* Hiển thị các thông báo có dấu rõ ràng */}
-      {error && <p className="text-sm font-medium text-red-600">{error}</p>}
-      {success && <p className="text-sm font-medium text-emerald-700">{success}</p>}
-
-      <p className="text-sm text-slate-600">
+      {/* Link Đăng nhập */}
+      <p className="mt-6 text-center text-sm font-medium text-slate-500">
         Đã có tài khoản?{' '}
-        <Link className="font-semibold text-sky-700 hover:underline" to={ROUTES.LOGIN}>
-          Đăng nhập ngay
+        <Link className="text-slate-900 font-bold hover:text-sky-700 hover:underline transition" to={ROUTES.LOGIN}>
+          Đăng nhập
         </Link>
       </p>
     </form>

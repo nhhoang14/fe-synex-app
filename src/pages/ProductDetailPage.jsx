@@ -19,15 +19,30 @@ function ProductDetailPage() {
   const [product, setProduct] = useState(null)
   const [allProducts, setAllProducts] = useState([])
   const [quantity, setQuantity] = useState(1)
-  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(true)
   
+  // State Toast Notification
+  const [message, setMessage] = useState('')
+  const [progress, setProgress] = useState(100)
+
   // State quản lý danh sách sản phẩm đã thích
   const [likedIds, setLikedIds] = useState([])
 
   usePageTitle(product ? `${getProductName(product)} - Synex` : 'Chi tiết sản phẩm - Synex')
 
-  // Hàm tải dữ liệu danh sách yêu thích
+  // Tự động ẩn thông báo sau 3 giây và chạy thanh progress
+  useEffect(() => {
+    if (message) {
+      setProgress(100)
+      const animTimer = setTimeout(() => setProgress(0), 50)
+      const closeTimer = setTimeout(() => setMessage(''), 3000)
+      return () => {
+        clearTimeout(animTimer)
+        clearTimeout(closeTimer)
+      }
+    }
+  }, [message])
+
   function loadLikedIds() {
     const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
     setLikedIds(wishlist.map((item) => getProductId(item)).filter(Boolean))
@@ -65,7 +80,6 @@ function ProductDetailPage() {
     }
   }, [id])
 
-  // Theo dõi và đồng bộ giỏ hàng yêu thích
   useEffect(() => {
     loadLikedIds()
     window.addEventListener('wishlistUpdated', loadLikedIds)
@@ -112,7 +126,6 @@ function ProductDetailPage() {
     }
   }
 
-  // Hàm xử lý Thích / Bỏ thích chung cho mọi sản phẩm
   function handleToggleWishlist(event, itemToToggle) {
     if (event) {
       event.preventDefault()
@@ -137,6 +150,8 @@ function ProductDetailPage() {
     setLikedIds(newWishlist.map((item) => getProductId(item)).filter(Boolean))
     window.dispatchEvent(new Event('wishlistUpdated'))
   }
+
+  const isSuccess = message.toLowerCase().includes('đã') || message.toLowerCase().includes('thành công')
 
   if (loading) {
     return (
@@ -185,6 +200,30 @@ function ProductDetailPage() {
 
   return (
     <div className="space-y-6">
+      
+      {/* TOAST THÔNG BÁO NỔI DẠNG OVERLAY */}
+      {message && (
+        <div className="fixed top-8 left-1/2 z-[9999] flex min-w-[320px] -translate-x-1/2 items-center justify-between overflow-hidden rounded-lg border border-slate-100 bg-white px-4 py-3 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-5 w-5 items-center justify-center rounded-full text-white ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}>
+              {isSuccess ? (
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+              ) : (
+                <span className="text-xs font-bold">!</span>
+              )}
+            </div>
+            <span className="text-sm font-medium text-slate-700">{message}</span>
+          </div>
+          <button onClick={() => setMessage('')} className="ml-6 text-slate-400 hover:text-slate-600 transition">
+            ✕
+          </button>
+          <div 
+            className={`absolute bottom-0 left-0 h-1 transition-all duration-[3000ms] ease-linear ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`} 
+            style={{ width: `${progress}%` }} 
+          />
+        </div>
+      )}
+
       <nav className="text-sm text-slate-500">
         <Link to={ROUTES.HOME} className="hover:text-slate-900">
           Trang chủ
@@ -200,7 +239,6 @@ function ProductDetailPage() {
       <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="relative overflow-hidden rounded-[28px] bg-slate-50">
-            {/* Nút thả tim của Sản phẩm chính */}
             <button
               type="button"
               onClick={(e) => handleToggleWishlist(e, product)}
@@ -279,8 +317,6 @@ function ProductDetailPage() {
                 Thêm vào giỏ
               </button>
             </div>
-
-            {message && <p className="mt-4 text-sm font-medium text-slate-600">{message}</p>}
           </div>
         </div>
       </section>
@@ -308,7 +344,6 @@ function ProductDetailPage() {
                   key={itemId}
                   className="group relative overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
                 >
-                  {/* Nút thả tim của Sản phẩm liên quan */}
                   <button
                     type="button"
                     onClick={(e) => handleToggleWishlist(e, item)}

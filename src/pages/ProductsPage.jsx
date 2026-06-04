@@ -24,11 +24,27 @@ function ProductsPage() {
   const [onlyAvailable, setOnlyAvailable] = useState(false)
   const [maxPrice, setMaxPrice] = useState('')
   const [sortBy, setSortBy] = useState('name-asc')
-  const [feedback, setFeedback] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [likedIds, setLikedIds] = useState([])
 
+  // State Toast Notification
+  const [feedback, setFeedback] = useState('')
+  const [progress, setProgress] = useState(100)
+
   const productsPerPage = 12
+
+  // Tự động ẩn thông báo sau 3 giây và chạy thanh progress
+  useEffect(() => {
+    if (feedback) {
+      setProgress(100)
+      const animTimer = setTimeout(() => setProgress(0), 50)
+      const closeTimer = setTimeout(() => setFeedback(''), 3000)
+      return () => {
+        clearTimeout(animTimer)
+        clearTimeout(closeTimer)
+      }
+    }
+  }, [feedback])
 
   function toObjectArray(data) {
     if (!Array.isArray(data)) return []
@@ -232,8 +248,33 @@ function ProductsPage() {
     window.dispatchEvent(new Event('wishlistUpdated'))
   }
 
+  const isSuccess = feedback.toLowerCase().includes('đã') || feedback.toLowerCase().includes('thành công')
+
   return (
     <div className="space-y-4">
+      {/* TOAST THÔNG BÁO NỔI DẠNG OVERLAY */}
+      {feedback && (
+        <div className="fixed top-8 left-1/2 z-[9999] flex min-w-[320px] -translate-x-1/2 items-center justify-between overflow-hidden rounded-lg border border-slate-100 bg-white px-4 py-3 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-5 w-5 items-center justify-center rounded-full text-white ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}>
+              {isSuccess ? (
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
+              ) : (
+                <span className="text-xs font-bold">!</span>
+              )}
+            </div>
+            <span className="text-sm font-medium text-slate-700">{feedback}</span>
+          </div>
+          <button onClick={() => setFeedback('')} className="ml-6 text-slate-400 hover:text-slate-600 transition">
+            ✕
+          </button>
+          <div 
+            className={`absolute bottom-0 left-0 h-1 transition-all duration-[3000ms] ease-linear ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`} 
+            style={{ width: `${progress}%` }} 
+          />
+        </div>
+      )}
+
       {/* Banner */}
       <section className="rounded-[28px] border border-border bg-slate-950 p-8 text-white shadow-sm">
         <div className="max-w-2xl">
@@ -246,7 +287,7 @@ function ProductsPage() {
         </div>
       </section>
 
-      {/* ĐÃ SỬA: THANH TIÊU ĐỀ NẰM NGANG (Bộ lọc và Sắp xếp nằm cùng 1 hàng) */}
+      {/* THANH TIÊU ĐỀ NẰM NGANG (Bộ lọc và Sắp xếp nằm cùng 1 hàng) */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3 pt-2">
         {/* Cột Bộ lọc (Bằng đúng chiều rộng của cột Filter bên dưới để chuẩn layout) */}
         <div className="lg:w-[280px]">
@@ -365,8 +406,6 @@ function ProductsPage() {
 
         {/* Khu vực danh sách sản phẩm */}
         <section className="space-y-4">
-          {feedback && <p className="text-sm font-medium text-slate-600 mb-2">{feedback}</p>}
-
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {paginatedProducts.map((product, index) => {
               const price = safePrice(product)
@@ -405,7 +444,7 @@ function ProductsPage() {
                         Sản phẩm Synex
                       </p>
 
-                      <h3 className="mt-3 min-h-[64px] text-xl font-bold leading-snug text-ink hover:text-sky-700">
+                      <h3 className="mt-3 min-h-[64px] text-xl font-bold leading-snug text-ink hover:text-sky-700 line-clamp-2">
                         {productName}
                       </h3>
 
@@ -415,7 +454,7 @@ function ProductsPage() {
                     </div>
                   </Link>
 
-                  <div className="px-5 pb-5">
+                  <div className="px-5 pb-5 mt-auto">
                     <button
                       type="button"
                       onClick={() => handleAddToCart(product)}
