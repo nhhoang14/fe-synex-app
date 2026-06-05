@@ -182,19 +182,6 @@ function RegisterPage() {
         </div>
       </div>
 
-      {/* Checkbox xác nhận */}
-      <label className="flex items-center gap-2 cursor-pointer pt-2">
-        <input 
-          type="checkbox" 
-          checked={isConfirmed}
-          onChange={(e) => setIsConfirmed(e.target.checked)}
-          className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500" 
-        />
-        <span className="text-sm font-medium text-slate-600">
-          Tôi xác nhận các thông tin trên là chính xác
-        </span>
-      </label>
-
       {/* Hiển thị thông báo */}
       {error && <p className="text-sm font-medium text-red-600 text-center">{error}</p>}
       {success && <p className="text-sm font-medium text-emerald-700 text-center">{success}</p>}

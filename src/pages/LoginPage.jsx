@@ -10,7 +10,9 @@ function LoginPage() {
 
   const navigate = useNavigate()
   const { login } = useAuth()
-  const [form, setForm] = useState({ email: '', password: '' })
+  
+  // ĐÃ SỬA: Đổi state email thành identifier để khớp với backend
+  const [form, setForm] = useState({ identifier: '', password: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -25,18 +27,18 @@ function LoginPage() {
     setIsSubmitting(true)
 
     try {
+      // ĐÃ SỬA: Gửi identifier lên context/api thay vì email
       const loginResponse = await login({
-        email: form.email.trim(),
+        identifier: form.identifier.trim(),
         password: form.password,
       })
 
       const normalizedRole = resolveRoleValue(loginResponse)
 
-      // ĐÃ SỬA: Nếu là USER thông thường thì chuyển về trang chủ dashboard thay vì hồ sơ
       navigate(
         normalizedRole === USER_ROLES.ADMIN
           ? ROUTES.ADMIN
-          : ROUTES.HOME || '/' // Sử dụng hằng số trang chủ của Synex (hoặc đường dẫn '/')
+          : ROUTES.HOME || '/'
       )
     } catch (requestError) {
       setError(requestError.message || 'Đăng nhập thất bại')
@@ -52,11 +54,12 @@ function LoginPage() {
     >
       <h1 className="text-4xl font-bold tracking-tight text-ink">Đăng nhập</h1>
 
+      {/* ĐÃ SỬA: Thay đổi name, type và label cho phù hợp với identifier */}
       <FormField
-        label="Email"
-        name="email"
-        type="email"
-        value={form.email}
+        label="Tên đăng nhập hoặc Email"
+        name="identifier"
+        type="text"
+        value={form.identifier}
         onChange={handleChange}
         required
       />
