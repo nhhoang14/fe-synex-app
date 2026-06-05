@@ -4,6 +4,10 @@ import { ROUTES } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 
+// THÊM IMPORT: Gọi trực tiếp API để xử lý ngầm mà không làm thay đổi state chung
+import { login as loginApi, extractToken } from '../services/authService'
+import { updateMyProfile } from '../services/userService'
+
 function RegisterPage() {
   usePageTitle('Đăng ký - Synex')
 
@@ -19,15 +23,12 @@ function RegisterPage() {
     confirmPassword: '',
   })
   
-  // State quản lý ẩn/hiện mật khẩu
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  
-  // State checkbox xác nhận
-  const [isConfirmed, setIsConfirmed] = useState(false)
 
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false) // Thêm loading để tránh bấm 2 lần
 
   function handleChange(event) {
     const { name, value } = event.target
@@ -39,33 +40,54 @@ function RegisterPage() {
     setError('')
     setSuccess('')
 
-    if (!isConfirmed) {
-      setError('Vui lòng xác nhận các thông tin trên là chính xác.')
-      return
-    }
-
     if (form.password !== form.confirmPassword) {
       setError('Mật khẩu xác nhận không khớp.')
       return
     }
 
+    setIsSubmitting(true)
+
     try {
-      // Truyền thêm các trường mới vào hàm register
+      // 1. GỌI API ĐĂNG KÝ BÌNH THƯỜNG
       await register({
         username: form.username.trim(),
         fullName: form.fullName.trim(),
         email: form.email.trim(),
-        phoneNumber: form.phone.trim(),
+        phone: form.phone.trim(),
         password: form.password,
       })
+
+      // 2. THỦ THUẬT FRONTEND: Đăng nhập ngầm & Ép lưu số điện thoại
+      // Vì Backend không lưu SĐT lúc đăng ký, ta tự động update nó ngay sau đó!
+      try {
+        const loginData = await loginApi({
+          identifier: form.username.trim(), // Đăng nhập ngầm bằng username vừa tạo
+          password: form.password
+        })
+        const tempToken = extractToken(loginData)
+        
+        if (tempToken) {
+          await updateMyProfile(tempToken, {
+            fullName: form.fullName.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            phoneNumber: form.phone.trim()
+          })
+        }
+      } catch (silentError) {
+        // Lỗi chạy ngầm thì cứ lờ đi, không làm sập luồng đăng ký của người dùng
+        console.warn("Không thể đồng bộ SĐT ngầm:", silentError)
+      }
+
+      // 3. HOÀN TẤT & CHUYỂN TRANG
       setSuccess('Đăng ký thành công! Vui lòng đăng nhập.')
       
-      // Chuyển hướng sang trang đăng nhập sau khi tạo tài khoản thành công
       setTimeout(() => {
         navigate(ROUTES.LOGIN)
       }, 1500)
     } catch (requestError) {
       setError(requestError.message || 'Đăng ký thất bại')
+      setIsSubmitting(false)
     }
   }
 
@@ -183,23 +205,24 @@ function RegisterPage() {
       </div>
 
       {/* Hiển thị thông báo */}
-      {error && <p className="text-sm font-medium text-red-600 text-center">{error}</p>}
-      {success && <p className="text-sm font-medium text-emerald-700 text-center">{success}</p>}
+      {error && <p className="text-sm font-medium text-red-600 text-center mt-4">{error}</p>}
+      {success && <p className="text-sm font-medium text-emerald-700 text-center mt-4">{success}</p>}
 
       {/* Nút Đăng ký */}
       <button 
         type="submit" 
-        className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-3.5 font-semibold text-white transition hover:bg-slate-800 active:scale-[0.99] shadow-sm"
+        disabled={isSubmitting}
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-3.5 font-semibold text-white transition hover:bg-slate-800 active:scale-[0.99] shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
       >
         <span className="material-symbols-outlined text-[20px]">person_add</span>
-        Đăng ký
+        {isSubmitting ? 'Đang xử lý...' : 'Đăng ký'}
       </button>
 
       {/* Link Đăng nhập */}
       <p className="mt-6 text-center text-sm font-medium text-slate-500">
         Đã có tài khoản?{' '}
         <Link className="text-slate-900 font-bold hover:text-sky-700 hover:underline transition" to={ROUTES.LOGIN}>
-          Đăng nhập
+          Đăng nhập ngay
         </Link>
       </p>
     </form>

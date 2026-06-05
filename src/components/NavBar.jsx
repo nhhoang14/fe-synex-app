@@ -17,7 +17,7 @@ import RightOverlayPanel from './RightOverlayPanel'
 
 function NavBar() {
   const { isAuthenticated, isAdmin, logout } = useAuth()
-  const { items, totalItems, totalAmount, fetchCart } = useCart()
+  const { items, totalItems, fetchCart } = useCart()
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -258,8 +258,10 @@ function NavBar() {
                       const price = getProductPrice(product)
 
                       return (
-                        <article
+                        <Link
                           key={item.id || `${productId}-${quantity}`}
+                          to={`/products/${productId}`}
+                          onClick={() => setCartDropdownOpen(false)}
                           className="grid grid-cols-[64px_1fr] gap-4 rounded-2xl border border-border bg-slate-50 p-2.5 items-center transition hover:border-slate-300"
                         >
                           <img
@@ -277,7 +279,7 @@ function NavBar() {
                               Số lượng: {quantity}
                             </p>
                           </div>
-                        </article>
+                        </Link>
                       )
                     })
                   )}

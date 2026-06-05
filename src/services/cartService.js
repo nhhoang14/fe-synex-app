@@ -11,15 +11,19 @@ export function getMyCart(token) {
   return apiRequest('/api/cart/me', { token })
 }
 
-export function addProductToCart(token, { productId, quantity, cartId }) {
+// ĐÃ SỬA: Xóa cartId, thay bằng variantId (để tương thích chuẩn với @RequestParam của Spring Boot)
+export function addProductToCart(token, { productId, quantity, variantId }) {
+  const query = { productId, quantity }
+  
+  // Chỉ đính kèm variantId nếu có giá trị (vì Required = false ở backend)
+  if (variantId) {
+    query.variantId = variantId
+  }
+
   return apiRequest('/api/cart/add', {
     method: 'POST',
     token,
-    query: {
-      productId,
-      quantity,
-      cartId,
-    },
+    query,
   })
 }
 

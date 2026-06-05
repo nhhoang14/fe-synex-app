@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ROUTES } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
 import { useCart } from '../contexts/CartContext'
@@ -17,23 +17,19 @@ import {
 function CartPage() {
   usePageTitle('Giỏ hàng - Synex')
 
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, token } = useAuth()
   const { items, fetchCart, increase, decrease, remove } = useCart()
+  const navigate = useNavigate()
+  
   const [message, setMessage] = useState('')
-  
-  // State quản lý danh sách ID các sản phẩm được tick chọn
   const [selectedItemIds, setSelectedItemIds] = useState([])
-  
-  // State quản lý mã khuyến mãi (UI demo)
   const [promoCode, setPromoCode] = useState('')
   const [discountAmount, setDiscountAmount] = useState(0)
 
-  // Lấy ra tất cả ID hợp lệ trong giỏ hàng để dùng cho nút "Chọn tất cả"
   const allItemIds = useMemo(() => {
     return items.map(item => item.id || getProductId(getCartItemProduct(item)))
   }, [items])
 
-  // Tính tổng tiền CHỈ cho những sản phẩm được tick
   const selectedTotalAmount = useMemo(() => {
     return items.reduce((total, item) => {
       const product = getCartItemProduct(item)
@@ -49,7 +45,6 @@ function CartPage() {
     }, 0)
   }, [items, selectedItemIds])
 
-  // Tính tổng tạm tính cuối cùng (sau khi trừ khuyến mãi)
   const finalTotal = Math.max(0, selectedTotalAmount - discountAmount)
 
   useEffect(() => {
@@ -60,14 +55,12 @@ function CartPage() {
     }
   }, [isAuthenticated, fetchCart])
 
-  // Xử lý tick/bỏ tick một sản phẩm
   function handleSelect(id) {
     setSelectedItemIds(prev =>
       prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]
     )
   }
 
-  // Xử lý tick/bỏ tick tất cả sản phẩm
   function handleSelectAll() {
     if (selectedItemIds.length === allItemIds.length && allItemIds.length > 0) {
       setSelectedItemIds([])
@@ -76,13 +69,11 @@ function CartPage() {
     }
   }
 
-  // Hàm xử lý áp dụng mã khuyến mãi (Giả lập UI)
   function handleApplyPromoCode() {
     if (!promoCode.trim()) {
       alert('Vui lòng nhập mã khuyến mãi!')
       return
     }
-    // Giả lập logic: Nếu mã là "SYNEX10", giảm 10% tổng đơn, tối đa 500k
     if (promoCode.trim().toUpperCase() === 'SYNEX10') {
       const discount = Math.min(selectedTotalAmount * 0.1, 500000)
       setDiscountAmount(discount)
@@ -97,7 +88,7 @@ function CartPage() {
     if (!isAuthenticated) return
     try {
       await increase(productId, 1)
-      await fetchCart() // Tự động đồng bộ lại giỏ hàng sau khi tăng
+      await fetchCart()
     } catch (error) {
       setMessage(error.message)
     }
@@ -107,7 +98,7 @@ function CartPage() {
     if (!isAuthenticated) return
     try {
       await decrease(productId, 1)
-      await fetchCart() // Tự động đồng bộ lại giỏ hàng sau khi giảm
+      await fetchCart()
     } catch (error) {
       setMessage(error.message)
     }
@@ -117,15 +108,47 @@ function CartPage() {
     if (!isAuthenticated) return
     try {
       await remove(productId)
-      await fetchCart() // Tự động đồng bộ lại giỏ hàng sau khi xóa
+      await fetchCart()
     } catch (error) {
       setMessage(error.message)
     }
   }
 
+  // GỌI API KIỂM TRA TỒN KHO TRƯỚC KHI SANG TRANG CHECKOUT
+async function handleProceedToCheckout() {
+    if (!isAuthenticated) {
+      navigate(ROUTES.LOGIN)
+      return
+    }
+    if (selectedItemIds.length === 0) return
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const res = await fetch(`${API_URL}/api/orders/validate-stock`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        // ĐÃ SỬA DÒNG NÀY: Bọc trong object có key cartItemIds
+        body: JSON.stringify({ cartItemIds: selectedItemIds }) 
+      })
+
+      if (!res.ok) {
+        throw new Error('Sản phẩm không đủ số lượng trong kho.')
+      }
+
+      // Đủ kho -> Điều hướng và mang theo mảng sản phẩm đã chọn
+      navigate(ROUTES.CHECKOUT, { 
+        state: { selectedItemIds, discountAmount } 
+      })
+    } catch (error) {
+      setMessage(error.message || 'Sản phẩm không đủ số lượng trong kho.')
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* BANNER MỚI: 1 khối dài, căn giữa giống trang thanh toán */}
       <section className="flex flex-col items-center justify-center rounded-[28px] border border-border bg-slate-50 py-10 px-6 text-center shadow-sm">
         <h1 className="text-4xl font-bold tracking-tight text-ink font-heading">
           Giỏ hàng của bạn
@@ -148,7 +171,7 @@ function CartPage() {
             </div>
           </div>
 
-          {message && <p className="text-sm font-medium text-slate-600">{message}</p>}
+          {message && <p className="text-sm font-bold text-red-600 bg-red-50 p-3 rounded-xl">{message}</p>}
 
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-slate-50 py-16 px-6 text-center">
@@ -208,7 +231,6 @@ function CartPage() {
                               alt={productName}
                               className="h-14 w-14 rounded-2xl object-cover shrink-0"
                             />
-                            {/* line-clamp-2 giúp text chỉ hiện tối đa 2 dòng, tự thêm "..." nếu quá dài */}
                             <span 
                               className="font-medium text-ink group-hover:text-sky-700 transition-colors line-clamp-2"
                               title={productName}
@@ -258,11 +280,9 @@ function CartPage() {
           )}
         </section>
 
-        {/* BẢNG TÓM TẮT ĐƠN HÀNG (STICKY) */}
         <aside className="sticky top-24 h-fit rounded-[28px] border border-border bg-white p-6 shadow-sm">
           <h3 className="text-2xl font-bold text-ink font-heading">Tóm tắt đơn hàng</h3>
 
-          {/* Ô Nhập mã khuyến mãi */}
           <div className="mt-6">
             <label className="text-sm font-bold text-ink block mb-3">
               Nhập mã khuyến mãi
@@ -287,7 +307,6 @@ function CartPage() {
 
           <hr className="my-5 border-dashed border-border" />
 
-          {/* Chi tiết giá */}
           <div className="space-y-4">
             <div className="flex items-center justify-between text-slate-600 font-medium">
               <span>Đơn hàng</span>
@@ -301,16 +320,15 @@ function CartPage() {
 
           <hr className="my-5 border-dashed border-border" />
 
-          {/* Tổng cộng */}
           <div className="flex items-center justify-between text-lg font-bold text-ink">
             <span>Tạm tính</span>
             <strong className="text-red-600 text-xl">{formatCurrency(finalTotal)}</strong>
           </div>
 
-          {/* Nút thanh toán */}
           <div className="mt-6">
-            <Link
-              to={isAuthenticated && selectedItemIds.length > 0 ? ROUTES.CHECKOUT : ROUTES.LOGIN}
+            <button
+              onClick={handleProceedToCheckout}
+              disabled={selectedItemIds.length === 0}
               className={`flex w-full items-center justify-center rounded-full px-5 py-3.5 text-center text-sm font-bold transition ${
                 selectedItemIds.length > 0 
                   ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' 
@@ -318,7 +336,7 @@ function CartPage() {
               }`}
             >
               Tiếp tục thanh toán
-            </Link>
+            </button>
           </div>
         </aside>
       </section>

@@ -72,7 +72,10 @@ function AccountPage() {
   const [progress, setProgress] = useState(100) // State cho Toast Notification
 
   const [profile, setProfile] = useState(null)
+  
+  // ĐÃ SỬA: Thêm trường username vào form
   const [profileForm, setProfileForm] = useState({
+    username: '',
     fullName: '',
     email: '',
     phoneNumber: '',
@@ -112,10 +115,12 @@ function AccountPage() {
 
     setProfile(nextProfile)
 
+    // ĐÃ SỬA: Đồng bộ username và quét chuẩn số điện thoại từ Backend
     setProfileForm({
-      fullName: nextProfile.fullName || nextProfile.name || nextProfile.username || '',
+      username: nextProfile.username || '',
+      fullName: nextProfile.fullName || nextProfile.name || '',
       email: nextProfile.email || '',
-      phoneNumber: nextProfile.phoneNumber || nextProfile.phone || '',
+      phoneNumber: nextProfile.phoneNumber || nextProfile.phone || nextProfile.mobile || '',
     })
   }, [])
 
@@ -170,8 +175,8 @@ function AccountPage() {
 
   const accountRole = useMemo(() => resolveRoleValue(profile), [profile])
   const profileInitial = useMemo(
-    () => (profileForm.fullName || profileForm.email || 'S').trim().charAt(0).toUpperCase(),
-    [profileForm.fullName, profileForm.email],
+    () => (profileForm.fullName || profileForm.username || profileForm.email || 'S').trim().charAt(0).toUpperCase(),
+    [profileForm.fullName, profileForm.username, profileForm.email],
   )
   const memberSince = useMemo(() => {
     if (!profile?.createdAt) return null
@@ -202,6 +207,7 @@ function AccountPage() {
         fullName: profileForm.fullName,
         email: profileForm.email,
         phoneNumber: profileForm.phoneNumber,
+        phone: profileForm.phoneNumber // Dự phòng gửi cả key 'phone'
       })
       const nextProfile = await loadProfile()
       syncProfileForm(nextProfile)
@@ -407,10 +413,10 @@ function AccountPage() {
               {profileInitial}
             </div>
             
-            <h2 className="mt-4 text-2xl font-bold tracking-tight text-ink">
-              {profileForm.fullName || 'Người dùng Synex'}
+            <h2 className="mt-4 text-2xl font-bold tracking-tight text-ink text-center">
+              {profileForm.fullName || profileForm.username || 'Người dùng Synex'}
             </h2>
-            <p className="mt-1 text-slate-700">
+            <p className="mt-1 text-slate-700 text-center">
               {profileForm.email || 'Chưa cập nhật email'}
             </p>
             
@@ -478,6 +484,18 @@ function AccountPage() {
                 <p className="text-slate-700">Cập nhật thông tin liên hệ để giao hàng và hỗ trợ nhanh hơn.</p>
 
                 <div className="grid gap-4 md:grid-cols-2 mt-4">
+                  <label className="block space-y-2" htmlFor="username">
+                    <span className="text-sm font-medium text-ink">Tên đăng nhập</span>
+                    <input
+                      id="username"
+                      value={profileForm.username}
+                      disabled
+                      title="Tên đăng nhập không thể thay đổi"
+                      placeholder="Chưa có tên đăng nhập"
+                      className="w-full rounded-2xl border border-border bg-slate-50 px-4 py-3 outline-none text-slate-500 cursor-not-allowed"
+                    />
+                  </label>
+
                   <label className="block space-y-2" htmlFor="fullName">
                     <span className="text-sm font-medium text-ink">Họ và tên</span>
                     <input
@@ -487,6 +505,20 @@ function AccountPage() {
                         setProfileForm((prev) => ({ ...prev, fullName: event.target.value }))
                       }
                       placeholder="Nhập họ và tên"
+                      className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
+                    />
+                  </label>
+
+                  <label className="block space-y-2" htmlFor="email">
+                    <span className="text-sm font-medium text-ink">Email</span>
+                    <input
+                      id="email"
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(event) =>
+                        setProfileForm((prev) => ({ ...prev, email: event.target.value }))
+                      }
+                      placeholder="Nhập email"
                       className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                     />
                   </label>
@@ -504,20 +536,6 @@ function AccountPage() {
                     />
                   </label>
                 </div>
-
-                <label className="block space-y-2" htmlFor="email">
-                  <span className="text-sm font-medium text-ink">Email</span>
-                  <input
-                    id="email"
-                    type="email"
-                    value={profileForm.email}
-                    onChange={(event) =>
-                      setProfileForm((prev) => ({ ...prev, email: event.target.value }))
-                    }
-                    placeholder="Nhập email"
-                    className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-                  />
-                </label>
 
                 <button
                   type="submit"
@@ -721,7 +739,7 @@ function AccountPage() {
             </div>
           )}
 
-          {/* TAB MỚI (UPDATE: GIAO DIỆN DẠNG LIST): SẢN PHẨM ĐÃ THÍCH */}
+          {/* TAB: SẢN PHẨM ĐÃ THÍCH */}
           {activeTab === 'wishlist' && (
             <div className="space-y-4 animate-in fade-in duration-300">
                <div className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
@@ -967,7 +985,7 @@ function AccountPage() {
                   }
 
                   recName = recName || profile?.fullName || profile?.name || 'Chưa cập nhật tên';
-                  recPhone = recPhone || profile?.phoneNumber || profile?.phone || 'Chưa cập nhật SĐT';
+                  recPhone = recPhone || profile?.phoneNumber || profile?.phone || profile?.mobile || 'Chưa cập nhật SĐT';
                   recAddress = recAddress || 'Chưa cập nhật địa chỉ';
 
                   return (
