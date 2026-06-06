@@ -645,7 +645,7 @@ function AccountPage() {
                         : 'bg-white border border-border text-slate-600 font-medium hover:bg-slate-50'
                     }`}
                   >
-                    Đang xử lý
+                    Đang giao
                   </button>
                   <button
                     type="button"

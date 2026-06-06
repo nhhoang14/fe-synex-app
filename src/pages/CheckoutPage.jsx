@@ -37,12 +37,15 @@ function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState('')
   const [saveAddress, setSaveAddress] = useState(false)
 
-  // Form địa chỉ mới
+  // API Hành chính (Tỉnh/Thành, Phường/Xã)
+  const [provinces, setProvinces] = useState([])
+  const [wards, setWards] = useState([])
+
+  // Form địa chỉ mới (Đã gỡ bỏ district)
   const [newAddress, setNewAddress] = useState({
     fullName: '',
     phoneNumber: '',
     city: '',
-    district: '',
     ward: '',
     addressLine: ''
   })
@@ -50,12 +53,14 @@ function CheckoutPage() {
   const [note, setNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0].value)
 
+  // Đẩy về giỏ hàng nếu chưa chọn sản phẩm
   useEffect(() => {
     if (selectedItemIds.length === 0) {
       navigate(ROUTES.CART)
     }
   }, [selectedItemIds, navigate])
 
+  // Tải danh sách giỏ hàng và Sổ địa chỉ
   useEffect(() => {
     fetchCart().catch(() => {
       setMessage('Không tải được giỏ hàng')
@@ -82,6 +87,44 @@ function CheckoutPage() {
       })
   }, [fetchCart, token])
 
+  // TẢI DANH SÁCH TỈNH/THÀNH PHỐ TỪ OPEN API VN
+  useEffect(() => {
+    fetch('https://provinces.open-api.vn/api/p/')
+      .then(res => res.json())
+      .then(data => {
+        setProvinces(Array.isArray(data) ? data : [])
+      })
+      .catch(() => console.error('Không tải được danh sách tỉnh/thành'))
+  }, [])
+
+  // XỬ LÝ KHI CHỌN TỈNH/THÀNH PHỐ MỚI -> LẤY DANH SÁCH PHƯỜNG XÃ
+  const handleCityChange = async (e) => {
+    const selectedCityName = e.target.value
+    setNewAddress(prev => ({ ...prev, city: selectedCityName, ward: '' }))
+    setWards([])
+
+    const prov = provinces.find(p => p.name === selectedCityName)
+    if (prov) {
+      try {
+        // depth=3 để lấy toàn bộ danh sách Phường/Xã nằm trong Tỉnh/Thành
+        const res = await fetch(`https://provinces.open-api.vn/api/p/${prov.code}?depth=3`)
+        const data = await res.json()
+        
+        const allWards = []
+        if (data.districts) {
+          data.districts.forEach(d => {
+            if (d.wards) {
+              allWards.push(...d.wards)
+            }
+          })
+        }
+        setWards(allWards)
+      } catch (err) {
+        console.error('Không tải được danh sách phường/xã', err)
+      }
+    }
+  }
+
   const selectedItems = useMemo(() => {
     return items.filter((item) => {
       const product = getCartItemProduct(item)
@@ -99,7 +142,6 @@ function CheckoutPage() {
 
   const finalTotal = Math.max(0, subtotal - discountAmount)
 
-  // Lấy ra thông tin địa chỉ đang được chọn để hiển thị ở Top
   const activeAddress = useMemo(() => {
     if (viewMode === 'list' && selectedAddressId) {
       return addresses.find(a => a.id === selectedAddressId) || null
@@ -126,13 +168,13 @@ function CheckoutPage() {
         }
 
         if (saveAddress && addresses.length < 3) {
-          const fullAddressString = `${newAddress.addressLine}, ${newAddress.ward ? newAddress.ward + ', ' : ''}${newAddress.district}, ${newAddress.city}`
+          const fullAddressString = `${newAddress.addressLine}, ${newAddress.ward ? newAddress.ward + ', ' : ''}${newAddress.city}`
           await createAddress(token, { 
             fullName: newAddress.fullName,
             phoneNumber: newAddress.phoneNumber,
             addressLine: fullAddressString,
             city: newAddress.city,
-            district: newAddress.district,
+            district: '', // Đã bỏ quận huyện nên gửi rỗng
             country: 'Vietnam' 
           })
           const updatedList = await getMyAddresses(token)
@@ -170,7 +212,7 @@ function CheckoutPage() {
       } else {
         payload.fullName = newAddress.fullName
         payload.phoneNumber = newAddress.phoneNumber
-        payload.address = `${newAddress.addressLine}, ${newAddress.ward ? newAddress.ward + ', ' : ''}${newAddress.district}, ${newAddress.city}`
+        payload.address = `${newAddress.addressLine}, ${newAddress.ward ? newAddress.ward + ', ' : ''}${newAddress.city}`
       }
 
       await createOrder(token, payload)
@@ -281,32 +323,39 @@ function CheckoutPage() {
                 </label>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3 pt-2">
-                <label className="block space-y-1.5">
+              {/* TỈNH/THÀNH PHỐ VÀ PHƯỜNG/XÁ DÙNG API THẬT */}
+              <div className="grid gap-4 md:grid-cols-2 pt-2">
+                <label className="block space-y-1.5 relative">
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tỉnh / Thành phố</span>
-                  <input
+                  <select
                     required
                     value={newAddress.city}
-                    onChange={e => setNewAddress({...newAddress, city: e.target.value})}
-                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink"
-                  />
+                    onChange={handleCityChange}
+                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink appearance-none cursor-pointer"
+                  >
+                    <option value="" disabled hidden>Chọn Tỉnh/Thành phố</option>
+                    {provinces.map(p => (
+                      <option key={p.code} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-2 top-[34px] text-slate-400 pointer-events-none">expand_more</span>
                 </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quận / Huyện</span>
-                  <input
-                    required
-                    value={newAddress.district}
-                    onChange={e => setNewAddress({...newAddress, district: e.target.value})}
-                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink"
-                  />
-                </label>
-                <label className="block space-y-1.5">
+
+                <label className="block space-y-1.5 relative">
                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phường / Xã</span>
-                  <input
+                  <select
+                    required={wards.length > 0}
                     value={newAddress.ward}
                     onChange={e => setNewAddress({...newAddress, ward: e.target.value})}
-                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink"
-                  />
+                    disabled={!newAddress.city || wards.length === 0}
+                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="" disabled hidden>Chọn Phường/Xã</option>
+                    {wards.map(w => (
+                      <option key={w.code} value={w.name}>{w.name}</option>
+                    ))}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-2 top-[34px] text-slate-400 pointer-events-none">expand_more</span>
                 </label>
               </div>
 
@@ -357,12 +406,12 @@ function CheckoutPage() {
           </div>
 
           <div className="pt-4">
-            <label className="block space-y-2">
+            <label className="block space-y-2 relative">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phương thức thanh toán</span>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100 font-medium text-ink"
+                className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100 font-medium text-ink appearance-none"
               >
                 {PAYMENT_METHODS.map((method) => (
                   <option key={method.value} value={method.value}>
@@ -370,6 +419,7 @@ function CheckoutPage() {
                   </option>
                 ))}
               </select>
+              <span className="material-symbols-outlined absolute right-4 top-[36px] text-slate-500 pointer-events-none">expand_more</span>
             </label>
           </div>
 
