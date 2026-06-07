@@ -77,15 +77,15 @@ function CheckoutPage() {
       .catch(() => setAddresses([]))
   }, [fetchCart, token])
 
-  // TẢI TỈNH / THÀNH PHỐ TỪ API
+  // TẢI TỈNH / THÀNH PHỐ TỪ API V2
   useEffect(() => {
-    fetch('https://provinces.open-api.vn/api/p/')
+    fetch('https://provinces.open-api.vn/api/v2/p/')
       .then(res => res.json())
       .then(data => setProvinces(Array.isArray(data) ? data : []))
       .catch(() => console.error('Không tải được danh sách tỉnh/thành'))
   }, [])
 
-  // TỰ ĐỘNG TẢI PHƯỜNG / XÃ THUỘC TỈNH
+  // TỰ ĐỘNG TẢI PHƯỜNG / XÃ THUỘC TỈNH TỪ API V2
   useEffect(() => {
     if (!newAddress.city || provinces.length === 0) {
       setWards([])
@@ -93,7 +93,7 @@ function CheckoutPage() {
     }
     const prov = provinces.find(p => p.name === newAddress.city)
     if (prov) {
-      fetch(`https://provinces.open-api.vn/api/p/${prov.code}?depth=3`)
+      fetch(`https://provinces.open-api.vn/api/v2/p/${prov.code}?depth=3`)
         .then(res => res.json())
         .then(data => {
           const allWards = []
