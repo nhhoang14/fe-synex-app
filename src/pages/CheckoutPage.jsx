@@ -30,7 +30,7 @@ function CheckoutPage() {
   const [addresses, setAddresses] = useState([])
   const [message, setMessage] = useState('')
   const [placingOrder, setPlacingOrder] = useState(false)
-  
+  const [orderSuccess, setOrderSuccess] = useState(false)
   const [selectedAddressId, setSelectedAddressId] = useState('')
 
   // --- QUẢN LÝ MODAL ĐỊA CHỈ ---
@@ -286,7 +286,8 @@ function CheckoutPage() {
       }
 
       await createOrder(token, payload)
-      setMessage('Đặt đơn thành công!')
+      // SỬA TẠI ĐÂY: Bật popup thay vì chỉ hiện dòng chữ
+      setOrderSuccess(true)
       await fetchCart()
       
     } catch (error) {
@@ -615,6 +616,40 @@ function CheckoutPage() {
           </div>
         </div>
       )}
+
+      {/* POPUP ĐẶT HÀNG THÀNH CÔNG ĐƯỢC CHÈN VÀO ĐÂY */}
+      {orderSuccess && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-2xl animate-in zoom-in-95 duration-200 p-8 text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            <h3 className="mb-3 text-2xl font-bold text-slate-900">Đặt hàng thành công!</h3>
+            <p className="mb-8 text-sm text-slate-600 leading-relaxed">
+              Cảm ơn bạn đã mua sắm tại Synex. Đơn hàng của bạn đã được ghi nhận và đang chờ xử lý.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="flex-1 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Tiếp tục mua sắm
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/account', { state: { activeTab: 'orders' } })}
+                className="flex-1 rounded-full bg-slate-900 px-6 py-3.5 text-sm font-bold text-white hover:bg-slate-800 transition shadow-sm"
+              >
+                Xem đơn hàng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
