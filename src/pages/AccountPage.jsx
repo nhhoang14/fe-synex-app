@@ -1071,11 +1071,17 @@ function AccountPage() {
                       recAddress = sa.address;
                     }
                   } 
-                  else if (displayOrder.fullName || displayOrder.receiverName || displayOrder.shippingName) {
-                    recName = displayOrder.fullName || displayOrder.receiverName || displayOrder.shippingName || recName;
-                    recPhone = displayOrder.phone || displayOrder.phoneNumber || displayOrder.shippingPhone || recPhone;
+                  // SỬA TẠI ĐÂY: Khớp chính xác với tên biến API trả về (shippingFullName, shippingPhone, shippingStreet...)
+                  else if (displayOrder.shippingFullName || displayOrder.fullName || displayOrder.receiverName) {
+                    recName = displayOrder.shippingFullName || displayOrder.fullName || displayOrder.receiverName || recName;
+                    recPhone = displayOrder.shippingPhone || displayOrder.phone || displayOrder.phoneNumber || recPhone;
                     
-                    const parts = [displayOrder.street, displayOrder.ward, displayOrder.province || displayOrder.city].filter(Boolean);
+                    const parts = [
+                      displayOrder.shippingStreet || displayOrder.street, 
+                      displayOrder.shippingWard || displayOrder.ward, 
+                      displayOrder.shippingProvince || displayOrder.province || displayOrder.city
+                    ].filter(Boolean);
+                    
                     if (parts.length > 0) {
                       recAddress = parts.join(', ');
                     } else if (displayOrder.address || displayOrder.shippingAddressStr) {
