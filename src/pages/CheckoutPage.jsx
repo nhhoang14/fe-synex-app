@@ -6,10 +6,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { useCart } from '../contexts/CartContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { createOrder } from '../services/orderService'
-import { getMyAddresses, createAddress } from '../services/userService'
+import { getMyAddresses, createAddress, setDefaultAddress } from '../services/userService'
 import {
   formatCurrency,
-  getAddressLabel,
   getCartItemProduct,
   getCartItemQuantity,
   getProductName,
@@ -32,16 +31,11 @@ function CheckoutPage() {
   const [message, setMessage] = useState('')
   const [placingOrder, setPlacingOrder] = useState(false)
   
-  // Quản lý hiển thị Form hay List
-  const [viewMode, setViewMode] = useState('list')
   const [selectedAddressId, setSelectedAddressId] = useState('')
-  const [saveAddress, setSaveAddress] = useState(false)
 
-  // API Hành chính (Tỉnh/Thành, Phường/Xã)
-  const [provinces, setProvinces] = useState([])
-  const [wards, setWards] = useState([])
-
-  // Form địa chỉ mới (Đã gỡ bỏ district)
+  // --- QUẢN LÝ MODAL ĐỊA CHỈ ---
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false)
+  const [editingAddressId, setEditingAddressId] = useState(null)
   const [newAddress, setNewAddress] = useState({
     fullName: '',
     phoneNumber: '',
@@ -49,18 +43,20 @@ function CheckoutPage() {
     ward: '',
     addressLine: ''
   })
-  
+
+  // API Hành chính
+  const [provinces, setProvinces] = useState([])
+  const [wards, setWards] = useState([])
+
   const [note, setNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0].value)
 
-  // Đẩy về giỏ hàng nếu chưa chọn sản phẩm
   useEffect(() => {
     if (selectedItemIds.length === 0) {
       navigate(ROUTES.CART)
     }
   }, [selectedItemIds, navigate])
 
-  // Tải danh sách giỏ hàng và Sổ địa chỉ
   useEffect(() => {
     fetchCart().catch(() => {
       setMessage('Không tải được giỏ hàng')
@@ -71,59 +67,158 @@ function CheckoutPage() {
         const list = Array.isArray(data) ? data : []
         setAddresses(list)
 
-        if (list.length === 0) {
-          setViewMode('form')
-        } else {
-          setViewMode('list')
+        if (list.length > 0) {
           const defaultAddress = list.find((a) => a.isDefault || a.default) || list[0]
           if (defaultAddress) {
             setSelectedAddressId(defaultAddress.id)
           }
         }
       })
-      .catch(() => {
-        setAddresses([])
-        setViewMode('form')
-      })
+      .catch(() => setAddresses([]))
   }, [fetchCart, token])
 
-  // TẢI DANH SÁCH TỈNH/THÀNH PHỐ TỪ OPEN API VN
+  // TẢI TỈNH / THÀNH PHỐ TỪ API
   useEffect(() => {
     fetch('https://provinces.open-api.vn/api/p/')
       .then(res => res.json())
-      .then(data => {
-        setProvinces(Array.isArray(data) ? data : [])
-      })
+      .then(data => setProvinces(Array.isArray(data) ? data : []))
       .catch(() => console.error('Không tải được danh sách tỉnh/thành'))
   }, [])
 
-  // XỬ LÝ KHI CHỌN TỈNH/THÀNH PHỐ MỚI -> LẤY DANH SÁCH PHƯỜNG XÃ
-  const handleCityChange = async (e) => {
-    const selectedCityName = e.target.value
-    setNewAddress(prev => ({ ...prev, city: selectedCityName, ward: '' }))
-    setWards([])
-
-    const prov = provinces.find(p => p.name === selectedCityName)
+  // TỰ ĐỘNG TẢI PHƯỜNG / XÃ THUỘC TỈNH
+  useEffect(() => {
+    if (!newAddress.city || provinces.length === 0) {
+      setWards([])
+      return
+    }
+    const prov = provinces.find(p => p.name === newAddress.city)
     if (prov) {
-      try {
-        // depth=3 để lấy toàn bộ danh sách Phường/Xã nằm trong Tỉnh/Thành
-        const res = await fetch(`https://provinces.open-api.vn/api/p/${prov.code}?depth=3`)
-        const data = await res.json()
-        
-        const allWards = []
-        if (data.districts) {
-          data.districts.forEach(d => {
-            if (d.wards) {
-              allWards.push(...d.wards)
-            }
-          })
-        }
-        setWards(allWards)
-      } catch (err) {
-        console.error('Không tải được danh sách phường/xã', err)
-      }
+      fetch(`https://provinces.open-api.vn/api/p/${prov.code}?depth=3`)
+        .then(res => res.json())
+        .then(data => {
+          const allWards = []
+          if (data.districts) {
+            data.districts.forEach(d => {
+              if (d.wards) allWards.push(...d.wards)
+            })
+          }
+          setWards(allWards)
+        })
+        .catch(err => console.error(err))
+    }
+  }, [newAddress.city, provinces])
+
+  const handleOpenAddModal = () => {
+    if (addresses.length >= 3) {
+      alert('Chỉ được lưu tối đa 3 địa chỉ. Vui lòng xóa bớt hoặc sửa địa chỉ hiện có trước khi thêm mới.');
+      return;
+    }
+    setEditingAddressId(null)
+    setNewAddress({ fullName: '', phoneNumber: '', city: '', ward: '', addressLine: '' })
+    setIsAddressModalOpen(true)
+  }
+
+  const handleOpenEditModal = (addr) => {
+    setEditingAddressId(addr.id)
+    setNewAddress({
+      fullName: addr.fullName || '',
+      phoneNumber: addr.phone || addr.phoneNumber || '',
+      // FIX: Đọc cả 2 trường province và city để đảm bảo có dữ liệu gán vào Form
+      city: addr.province || addr.city || '',
+      ward: addr.ward || '',
+      addressLine: addr.street || addr.addressLine || '' 
+    })
+    setIsAddressModalOpen(true)
+  }
+
+  const handleSetDefault = async (id) => {
+    try {
+      await setDefaultAddress(token, id);
+      const updatedList = await getMyAddresses(token);
+      setAddresses(updatedList);
+      setSelectedAddressId(id);
+    } catch (error) {
+      alert('Không thể đặt địa chỉ mặc định: ' + error.message);
     }
   }
+
+  const handleDeleteAddress = async (id) => {
+      // THÊM CHẶN XÓA Ở ĐÂY
+      if (addresses.length <= 1) {
+        alert('Không thể xóa. Bạn phải giữ lại ít nhất 1 địa chỉ nhận hàng.');
+        return;
+      }
+      if (!window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này?')) return;
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+        const response = await fetch(`${API_URL}/api/users/me/addresses/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Xóa thất bại');
+        
+        const updatedList = await getMyAddresses(token);
+        setAddresses(updatedList);
+        if (selectedAddressId === id && updatedList.length > 0) {
+          setSelectedAddressId(updatedList[0].id);
+        } else if (updatedList.length === 0) {
+          setSelectedAddressId('');
+        }
+      } catch (err) {
+        alert('Lỗi khi xóa địa chỉ: ' + err.message);
+      }
+    }
+
+    const handleSaveAddressModal = async (e) => {
+      e.preventDefault()
+      
+      // FIX LỖI MẶC ĐỊNH: Lấy lại trạng thái isDefault cũ truyền lên BE
+      const activeAddr = addresses.find(a => a.id === editingAddressId);
+      const isCurrentlyDefault = activeAddr ? (activeAddr.isDefault || activeAddr.default) : false;
+
+      const payload = {
+        fullName: newAddress.fullName,
+        phone: newAddress.phoneNumber, 
+        phoneNumber: newAddress.phoneNumber, 
+        street: newAddress.addressLine, 
+        addressLine: newAddress.addressLine, 
+        ward: newAddress.ward,
+        district: '', 
+        city: newAddress.city,
+        province: newAddress.city, 
+        country: 'Vietnam',
+        isDefault: isCurrentlyDefault, // Ép truyền cờ này
+        default: isCurrentlyDefault    // Ép truyền cờ này
+      }
+
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+        
+        if (editingAddressId) {
+          const response = await fetch(`${API_URL}/api/users/me/addresses/${editingAddressId}`, {
+            method: 'PUT',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          })
+          if (!response.ok) throw new Error('Cập nhật địa chỉ thất bại')
+        } else {
+          await createAddress(token, payload)
+        }
+
+        const updatedList = await getMyAddresses(token)
+        setAddresses(updatedList)
+        
+        if (!editingAddressId && updatedList.length > 0) {
+          setSelectedAddressId(updatedList[updatedList.length - 1].id)
+        }
+        setIsAddressModalOpen(false)
+      } catch (err) {
+        alert('Lỗi khi lưu địa chỉ: ' + err.message)
+      }
+    }
 
   const selectedItems = useMemo(() => {
     return items.filter((item) => {
@@ -143,13 +238,13 @@ function CheckoutPage() {
   const finalTotal = Math.max(0, subtotal - discountAmount)
 
   const activeAddress = useMemo(() => {
-    if (viewMode === 'list' && selectedAddressId) {
+    if (selectedAddressId) {
       return addresses.find(a => a.id === selectedAddressId) || null
     }
     return null
-  }, [viewMode, selectedAddressId, addresses])
+  }, [selectedAddressId, addresses])
 
-  async function handleSubmit(event) {
+  async function handleSubmitCheckout(event) {
     event.preventDefault()
     setMessage('')
 
@@ -158,33 +253,15 @@ function CheckoutPage() {
       return
     }
 
+    if (!selectedAddressId) {
+      setMessage('Vui lòng chọn địa chỉ giao hàng.')
+      return
+    }
+
     setPlacingOrder(true)
-    let finalShippingAddressId = selectedAddressId
 
     try {
-      if (viewMode === 'form') {
-        if (!newAddress.fullName || !newAddress.phoneNumber || !newAddress.addressLine || !newAddress.city) {
-          throw new Error('Vui lòng điền đầy đủ thông tin nhận hàng.')
-        }
-
-        if (saveAddress && addresses.length < 3) {
-          const fullAddressString = `${newAddress.addressLine}, ${newAddress.ward ? newAddress.ward + ', ' : ''}${newAddress.city}`
-          await createAddress(token, { 
-            fullName: newAddress.fullName,
-            phoneNumber: newAddress.phoneNumber,
-            addressLine: fullAddressString,
-            city: newAddress.city,
-            district: '', // Đã bỏ quận huyện nên gửi rỗng
-            country: 'Vietnam' 
-          })
-          const updatedList = await getMyAddresses(token)
-          const created = updatedList[updatedList.length - 1]
-          if (created) finalShippingAddressId = created.id
-        }
-      }
-
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-      
       const validateRes = await fetch(`${API_URL}/api/orders/validate-stock`, {
         method: 'POST',
         headers: {
@@ -202,17 +279,10 @@ function CheckoutPage() {
 
       const payload = {
         paymentMethod,
-        cartItemIds: selectedItemIds,
+        cartItemIds: selectedItemIds, 
         discountAmount,
-        note
-      }
-
-      if (viewMode === 'list' || (viewMode === 'form' && saveAddress)) {
-        payload.shippingAddressId = Number(finalShippingAddressId)
-      } else {
-        payload.fullName = newAddress.fullName
-        payload.phoneNumber = newAddress.phoneNumber
-        payload.address = `${newAddress.addressLine}, ${newAddress.ward ? newAddress.ward + ', ' : ''}${newAddress.city}`
+        note,
+        shippingAddressId: Number(selectedAddressId) 
       }
 
       await createOrder(token, payload)
@@ -234,167 +304,112 @@ function CheckoutPage() {
       />
 
       <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
+        {/* FORM ĐẶT HÀNG CHÍNH */}
         <form
-          className="space-y-6 rounded-[28px] border border-border bg-white p-6 shadow-sm sm:p-8"
-          onSubmit={handleSubmit}
+          className="space-y-6 rounded-[28px] border border-border bg-white p-6 shadow-sm sm:p-8 relative"
+          onSubmit={handleSubmitCheckout}
         >
           <h2 className="text-2xl font-bold text-ink mb-2">Thông tin giao hàng</h2>
 
-          {viewMode === 'list' ? (
-            <div className="space-y-5 animate-in fade-in duration-300">
-              {activeAddress && (
-                <div className="grid grid-cols-2 gap-4 pb-2">
-                  <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Tên người nhận</span>
-                    <p className="text-lg font-medium text-ink">{activeAddress.fullName}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">SĐT người nhận</span>
-                    <p className="text-lg font-medium text-ink">{activeAddress.phoneNumber}</p>
-                  </div>
+          <div className="space-y-5 animate-in fade-in duration-300">
+            {activeAddress && (
+              <div className="grid grid-cols-2 gap-4 pb-2">
+                <div>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">Tên người nhận</span>
+                  <p className="text-lg font-medium text-ink">{activeAddress.fullName}</p>
                 </div>
-              )}
+                <div>
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">SĐT người nhận</span>
+                  <p className="text-lg font-medium text-ink">{activeAddress.phone || activeAddress.phoneNumber}</p>
+                </div>
+              </div>
+            )}
 
-              <div className="space-y-3">
-                {addresses.map((addr) => (
-                  <label 
-                    key={addr.id} 
-                    className="flex items-start gap-3 cursor-pointer group"
-                  >
-                    <div className="pt-1 flex-shrink-0">
-                      <input 
-                        type="radio" 
-                        name="address" 
-                        checked={selectedAddressId === addr.id} 
-                        onChange={() => setSelectedAddressId(addr.id)} 
-                        className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 transition" 
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-ink">{addr.fullName || 'Tên người nhận'}</span>
-                        {(addr.isDefault || addr.default) && (
-                          <span className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600 uppercase tracking-wide">
-                            Mặc định
-                          </span>
+            <div className="space-y-3">
+              {addresses.length === 0 ? (
+                <p className="text-slate-500 text-sm">Chưa có địa chỉ nào được lưu.</p>
+              ) : (
+                addresses.map((addr) => {
+                  // FIX: Đọc province || city để hiển thị đầy đủ
+                  const displayAddress = [addr.street || addr.addressLine, addr.ward, addr.province || addr.city].filter(Boolean).join(', ')
+
+                  return (
+                    <div key={addr.id} className={`rounded-2xl border p-4 transition-all ${selectedAddressId === addr.id ? 'border-sky-500 bg-sky-50/50' : 'border-slate-200 hover:border-sky-300'}`}>
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <div className="pt-1 flex-shrink-0">
+                          <input 
+                            type="radio" 
+                            name="address" 
+                            checked={selectedAddressId === addr.id} 
+                            onChange={() => setSelectedAddressId(addr.id)} 
+                            className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 transition" 
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-ink">{addr.fullName || 'Tên người nhận'}</span>
+                            {(addr.isDefault || addr.default) && (
+                              <span className="rounded bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600 uppercase tracking-wide">
+                                Mặc định
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-slate-600 leading-relaxed mb-1">
+                            {addr.phone || addr.phoneNumber}
+                          </p>
+                          <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                            {displayAddress}
+                          </p>
+                        </div>
+                      </label>
+
+                      <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center gap-4 pl-7">
+                        {!(addr.isDefault || addr.default) && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); handleSetDefault(addr.id) }}
+                            className="text-xs font-semibold text-sky-600 hover:text-sky-700 transition"
+                          >
+                            Đặt mặc định
+                          </button>
                         )}
+                        
+                        <div className="flex items-center gap-3 ml-auto">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); handleOpenEditModal(addr) }}
+                            className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-blue-600 transition"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); handleDeleteAddress(addr.id) }}
+                            className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-red-600 transition"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                            Xóa
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        {getAddressLabel(addr)}
-                      </p>
                     </div>
-                  </label>
-                ))}
-              </div>
-
-              {addresses.length < 3 && (
-                <div className="pt-2 flex items-center gap-2 text-sm font-medium">
-                  <span className="text-slate-700">hoặc</span>
-                  <button 
-                    type="button" 
-                    onClick={() => setViewMode('form')} 
-                    className="text-red-600 hover:text-red-700 hover:underline transition font-bold"
-                  >
-                    nhập địa chỉ mới
-                  </button>
-                </div>
+                  )
+                })
               )}
             </div>
-          ) : (
-            <div className="space-y-5 animate-in fade-in duration-300">
-              <div className="grid gap-4 md:grid-cols-2 pb-2">
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tên người nhận</span>
-                  <input
-                    required
-                    value={newAddress.fullName}
-                    onChange={e => setNewAddress({...newAddress, fullName: e.target.value})}
-                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink text-lg"
-                  />
-                </label>
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">SĐT người nhận</span>
-                  <input
-                    required
-                    value={newAddress.phoneNumber}
-                    onChange={e => setNewAddress({...newAddress, phoneNumber: e.target.value})}
-                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink text-lg"
-                  />
-                </label>
-              </div>
 
-              {/* TỈNH/THÀNH PHỐ VÀ PHƯỜNG/XÁ DÙNG API THẬT */}
-              <div className="grid gap-4 md:grid-cols-2 pt-2">
-                <label className="block space-y-1.5 relative">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tỉnh / Thành phố</span>
-                  <select
-                    required
-                    value={newAddress.city}
-                    onChange={handleCityChange}
-                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink appearance-none cursor-pointer"
-                  >
-                    <option value="" disabled hidden>Chọn Tỉnh/Thành phố</option>
-                    {provinces.map(p => (
-                      <option key={p.code} value={p.name}>{p.name}</option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined absolute right-2 top-[34px] text-slate-400 pointer-events-none">expand_more</span>
-                </label>
-
-                <label className="block space-y-1.5 relative">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phường / Xã</span>
-                  <select
-                    required={wards.length > 0}
-                    value={newAddress.ward}
-                    onChange={e => setNewAddress({...newAddress, ward: e.target.value})}
-                    disabled={!newAddress.city || wards.length === 0}
-                    className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <option value="" disabled hidden>Chọn Phường/Xã</option>
-                    {wards.map(w => (
-                      <option key={w.code} value={w.name}>{w.name}</option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined absolute right-2 top-[34px] text-slate-400 pointer-events-none">expand_more</span>
-                </label>
-              </div>
-
-              <div className="pt-2">
-                <input
-                  required
-                  value={newAddress.addressLine}
-                  onChange={e => setNewAddress({...newAddress, addressLine: e.target.value})}
-                  placeholder="Số nhà, tên đường (Vui lòng điền chi tiết)"
-                  className="w-full border-b border-slate-300 bg-transparent px-2 py-2 outline-none transition focus:border-sky-500 font-medium text-ink placeholder:text-slate-400"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-4">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <input 
-                    type="checkbox" 
-                    checked={saveAddress} 
-                    onChange={e => setSaveAddress(e.target.checked)} 
-                    className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500 transition" 
-                  />
-                  <span className="text-sm font-semibold text-sky-600 group-hover:text-sky-700 transition">
-                    Lưu địa chỉ cho lần mua kế tiếp
-                  </span>
-                </label>
-
-                {addresses.length > 0 && (
-                  <button 
-                    type="button" 
-                    onClick={() => setViewMode('list')} 
-                    className="text-sm font-bold text-red-600 hover:text-red-700 transition flex items-center gap-1"
-                  >
-                    Chọn từ sổ địa chỉ
-                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-                  </button>
-                )}
-              </div>
+            <div className="pt-2 flex items-center gap-2 text-sm font-medium">
+              <span className="text-slate-700">hoặc</span>
+              <button 
+                type="button" 
+                onClick={handleOpenAddModal} 
+                className="text-red-600 hover:text-red-700 hover:underline transition font-bold"
+              >
+                nhập địa chỉ mới
+              </button>
             </div>
-          )}
+          </div>
 
           <div className="pt-4 mt-2">
             <input
@@ -411,7 +426,7 @@ function CheckoutPage() {
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100 font-medium text-ink appearance-none"
+                className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100 font-medium text-ink appearance-none cursor-pointer"
               >
                 {PAYMENT_METHODS.map((method) => (
                   <option key={method.value} value={method.value}>
@@ -438,6 +453,7 @@ function CheckoutPage() {
           )}
         </form>
 
+        {/* CỘT TỔNG TIỀN BÊN PHẢI */}
         <aside className="h-fit rounded-[28px] border border-border bg-white p-6 shadow-sm sticky top-24">
           <h3 className="text-2xl font-bold text-ink font-heading">Chi tiết đơn hàng</h3>
 
@@ -492,6 +508,113 @@ function CheckoutPage() {
           </p>
         </aside>
       </section>
+
+      {/* MODAL NHẬP ĐỊA CHỈ NỔI LÊN (POPUP) */}
+      {isAddressModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl overflow-hidden rounded-[28px] bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 px-8 py-5">
+              <h3 className="text-2xl font-bold text-slate-900 font-heading">
+                {editingAddressId ? 'Sửa địa chỉ giao hàng' : 'Thêm địa chỉ mới'}
+              </h3>
+              <button
+                onClick={() => setIsAddressModalOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <span className="material-symbols-outlined text-[24px]">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAddressModal} className="p-8 space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <label className="block space-y-2">
+                  <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Tên người nhận <span className="text-red-500">*</span></span>
+                  <input
+                    required
+                    value={newAddress.fullName}
+                    onChange={e => setNewAddress({...newAddress, fullName: e.target.value})}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 font-medium text-ink"
+                  />
+                </label>
+                <label className="block space-y-2">
+                  <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">SĐT người nhận <span className="text-red-500">*</span></span>
+                  <input
+                    required
+                    value={newAddress.phoneNumber}
+                    onChange={e => setNewAddress({...newAddress, phoneNumber: e.target.value})}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 font-medium text-ink"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <label className="block space-y-2 relative">
+                  <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Tỉnh / Thành phố <span className="text-red-500">*</span></span>
+                  <select
+                    required
+                    value={newAddress.city}
+                    onChange={(e) => {
+                      setNewAddress({...newAddress, city: e.target.value, ward: ''})
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 font-medium text-ink appearance-none cursor-pointer"
+                  >
+                    <option value="" disabled hidden></option>
+                    {provinces.map(p => (
+                      <option key={p.code} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-4 top-[40px] text-slate-400 pointer-events-none">expand_more</span>
+                </label>
+
+                <label className="block space-y-2 relative">
+                  <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Phường / Xã <span className="text-red-500">*</span></span>
+                  <select
+                    required={wards.length > 0}
+                    value={newAddress.ward}
+                    onChange={e => setNewAddress({...newAddress, ward: e.target.value})}
+                    disabled={!newAddress.city || wards.length === 0}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 font-medium text-ink appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="" disabled hidden></option>
+                    {wards.map(w => (
+                      <option key={w.code} value={w.name}>{w.name}</option>
+                    ))}
+                  </select>
+                  <span className="material-symbols-outlined absolute right-4 top-[40px] text-slate-400 pointer-events-none">expand_more</span>
+                </label>
+              </div>
+
+              <div className="pt-2">
+                <label className="block space-y-2">
+                  <span className="text-[13px] font-bold text-slate-500 uppercase tracking-wider">Số nhà, Đường <span className="text-red-500">*</span></span>
+                  <input
+                    required
+                    value={newAddress.addressLine}
+                    onChange={e => setNewAddress({...newAddress, addressLine: e.target.value})}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-500/10 font-medium text-ink"
+                  />
+                </label>
+              </div>
+
+              <div className="flex gap-4 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddressModalOpen(false)}
+                  className="flex-1 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-full bg-slate-900 px-6 py-3.5 text-sm font-bold text-white hover:bg-slate-800 transition shadow-sm"
+                >
+                  Xác nhận lưu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

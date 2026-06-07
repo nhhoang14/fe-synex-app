@@ -49,8 +49,19 @@ function AdminProductsPage() {
     }
   }
 
+  // ĐÃ SỬA: Hàm tự động moi tồn kho (stockQuantity) từ trong mảng variants ra
+  const getProductStock = (product) => {
+    if (product?.variants && product.variants.length > 0) {
+      // Cộng tổng tồn kho của tất cả các biến thể thuộc sản phẩm này
+      return product.variants.reduce((sum, variant) => sum + Number(variant.stockQuantity || 0), 0);
+    }
+    // Fallback nếu không có variant
+    return Number(product?.stockQuantity || product?.stock || 0);
+  }
+
+  // ĐÃ SỬA: Dùng hàm getProductStock để tính Tổng tồn kho toàn shop
   const totalStock = useMemo(
-    () => products.reduce((sum, product) => sum + Number(product?.stockQuantity || product?.stock || 0), 0),
+    () => products.reduce((sum, product) => sum + getProductStock(product), 0),
     [products],
   )
 
@@ -110,7 +121,8 @@ function AdminProductsPage() {
 
             <tbody className="divide-y divide-border">
               {products.map((product, index) => {
-                const stock = Number(product?.stockQuantity || product?.stock || 0)
+                // ĐÃ SỬA: Lấy tồn kho chuẩn
+                const stock = getProductStock(product)
                 const name = getProductName(product)
                 const id = product.id || product.productId
 

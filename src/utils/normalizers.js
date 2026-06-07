@@ -7,6 +7,10 @@ export function getProductName(product) {
 }
 
 export function getProductImage(product) {
+  // Ưu tiên lấy ảnh từ variant đầu tiên nếu có
+  if (product?.variants && product.variants.length > 0 && product.variants[0].imageUrl) {
+    return product.variants[0].imageUrl;
+  }
   return (
     product?.imageUrl ||
     product?.thumbnail ||
@@ -15,8 +19,21 @@ export function getProductImage(product) {
   )
 }
 
-export function getProductPrice(product) {
-  return Number(product?.price || product?.unitPrice || product?.amount || 0)
+// ĐÃ SỬA: Lấy giá từ biến thể (variant) thay vì sản phẩm gốc
+export function getProductPrice(itemOrProduct) {
+  // 1. Nếu là item trong giỏ hàng (đã chọn sẵn variant)
+  if (itemOrProduct?.variant?.price) {
+    return Number(itemOrProduct.variant.price);
+  }
+
+  // 2. Nếu là product (đang ở trang danh sách sản phẩm)
+  const product = itemOrProduct?.product || itemOrProduct;
+  if (product?.variants && product.variants.length > 0) {
+    return Number(product.variants[0].price || 0); // Lấy giá của variant đầu tiên
+  }
+
+  // 3. Fallback mặc định
+  return Number(product?.price || product?.unitPrice || product?.amount || 0);
 }
 
 export function formatCurrency(value) {

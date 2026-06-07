@@ -21,7 +21,6 @@ function ProductCard({ product, compact = false, onNotify }) {
   }, [productId])
 
   async function handleAddToCart(event) {
-    // Ngăn chặn sự kiện click lan ra thẻ Link bọc bên ngoài
     if (event) {
       event.preventDefault()
       event.stopPropagation()
@@ -30,7 +29,12 @@ function ProductCard({ product, compact = false, onNotify }) {
     if (!productId) return
 
     try {
-      await addToCart(productId, 1)
+      // ĐÃ SỬA: Lấy variantId từ mảng variants để gửi lên Backend
+      const variantId = product?.variants?.length > 0 ? product.variants[0].id : null;
+
+      // Truyền variantId vào hàm addToCart
+      await addToCart(productId, 1, variantId)
+      
       if (onNotify) onNotify(`Đã thêm ${getProductName(product)} vào giỏ hàng thành công!`)
     } catch (error) {
       console.error('Lỗi khi thêm vào giỏ:', error)
@@ -40,7 +44,6 @@ function ProductCard({ product, compact = false, onNotify }) {
   }
 
   function handleToggleWishlist(event) {
-    // Ngăn chặn sự kiện click lan ra thẻ Link bọc bên ngoài
     if (event) {
       event.preventDefault()
       event.stopPropagation()
@@ -70,7 +73,6 @@ function ProductCard({ product, compact = false, onNotify }) {
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
       
-      {/* Nút Thả tim */}
       <button
         type="button"
         onClick={handleToggleWishlist}
@@ -81,7 +83,6 @@ function ProductCard({ product, compact = false, onNotify }) {
         </span>
       </button>
 
-      {/* Link bọc Ảnh và Tên Sản phẩm */}
       <Link to={`/products/${productId}`} className="flex h-full flex-col">
         <img
           src={getProductImage(product)}
@@ -106,7 +107,6 @@ function ProductCard({ product, compact = false, onNotify }) {
         </div>
       </Link>
 
-      {/* Nút Thêm vào giỏ nằm ngoài thẻ Link */}
       <div className="mt-auto flex justify-center pb-5 px-5">
         <button
           type="button"

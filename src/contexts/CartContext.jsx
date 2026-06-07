@@ -21,7 +21,6 @@ const CartContext = createContext(null)
 export function CartProvider({ children }) {
   const { token } = useAuth()
   
-  // Khởi tạo cart là mảng rỗng để an toàn khi map()
   const [cart, setCart] = useState([]) 
   const [loading, setLoading] = useState(false)
 
@@ -34,7 +33,6 @@ export function CartProvider({ children }) {
     setLoading(true)
     try {
       const data = await getMyCart(token)
-      // Backend trả về List<CartItem>, nên data là Array
       const cartData = Array.isArray(data) ? data : []
       setCart(cartData)
       return cartData
@@ -57,7 +55,6 @@ export function CartProvider({ children }) {
     }
   }, [token])
 
-  // ĐÃ SỬA: Đổi tham số cuối thành variantId = null
   const addToCart = useCallback(async (productId, quantity = 1, variantId = null) => {
     if (!token) throw new Error('Vui lòng đăng nhập trước khi mua hàng')
 
@@ -67,14 +64,46 @@ export function CartProvider({ children }) {
 
   const increase = useCallback(async (productId, amount = 1) => {
     if (!token) return null
-    await increaseCartItem(token, productId, amount)
-    return await fetchCart()
+
+    // ĐÃ SỬA: Cập nhật giao diện tăng số lượng ngay lập tức để không bị kẹt
+    setCart(prev => {
+      if (!Array.isArray(prev)) return prev;
+      return prev.map(item => {
+        const prodId = String(getProductId(getCartItemProduct(item)));
+        if (prodId === String(productId)) {
+          return { ...item, quantity: getCartItemQuantity(item) + amount };
+        }
+        return item;
+      });
+    });
+
+    try {
+      await increaseCartItem(token, productId, amount)
+    } catch (error) {
+      await fetchCart() // Nếu backend lỗi thì tải lại
+    }
   }, [token, fetchCart])
 
   const decrease = useCallback(async (productId, amount = 1) => {
     if (!token) return null
-    await decreaseCartItem(token, productId, amount)
-    return await fetchCart()
+
+    // ĐÃ SỬA: Cập nhật giao diện giảm số lượng ngay lập tức
+    setCart(prev => {
+      if (!Array.isArray(prev)) return prev;
+      return prev.map(item => {
+        const prodId = String(getProductId(getCartItemProduct(item)));
+        if (prodId === String(productId)) {
+          return { ...item, quantity: Math.max(1, getCartItemQuantity(item) - amount) };
+        }
+        return item;
+      });
+    });
+
+    try {
+      await decreaseCartItem(token, productId, amount)
+    } catch (error) {
+      await fetchCart()
+    }
   }, [token, fetchCart])
 
   const remove = useCallback(async (productId) => {
@@ -82,7 +111,6 @@ export function CartProvider({ children }) {
 
     const previousCart = cart
 
-    // Optimistic update: Ẩn ngay item trên giao diện để tránh giật lag UI chờ API
     setCart((currentCart) => {
       if (!currentCart) return currentCart
       
@@ -93,7 +121,6 @@ export function CartProvider({ children }) {
         })
       }
 
-      // Đề phòng trường hợp format khác
       const currentItems = getCartItems(currentCart)
       const nextItems = currentItems.filter((item) => {
         const itemProductId = getProductId(getCartItemProduct(item))
@@ -108,20 +135,20 @@ export function CartProvider({ children }) {
 
     try {
       await removeCartItem(token, productId)
-      return await fetchCart() // Gọi lại DB để đồng bộ cuối cùng
+      return await fetchCart() 
     } catch (error) {
-      setCart(previousCart) // Nếu lỗi thì khôi phục lại UI như cũ
+      setCart(previousCart) 
       throw error
     }
   }, [token, cart, fetchCart])
 
-  // Đồng bộ item: đảm bảo items luôn là mảng để giao diện đếm và tính tiền
   const items = Array.isArray(cart) ? cart : (getCartItems(cart) || [])
   
   const totalItems = items.reduce((sum, item) => sum + getCartItemQuantity(item), 0)
+  
+  // ĐÃ SỬA: Truyền 'item' thẳng vào getProductPrice để lấy được giá của variant
   const totalAmount = items.reduce((sum, item) => {
-    const product = getCartItemProduct(item)
-    return sum + getCartItemQuantity(item) * getProductPrice(product)
+    return sum + getCartItemQuantity(item) * getProductPrice(item)
   }, 0)
 
   const value = useMemo(
@@ -138,25 +165,12 @@ export function CartProvider({ children }) {
       decrease,
       remove,
     }),
-    [
-      cart,
-      items,
-      totalItems,
-      totalAmount,
-      loading,
-      openCart,
-      fetchCart,
-      addToCart,
-      increase,
-      decrease,
-      remove,
-    ],
+    [cart, items, totalItems, totalAmount, loading, openCart, fetchCart, addToCart, increase, decrease, remove],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useCart() {
   const context = useContext(CartContext)
   if (!context) {
