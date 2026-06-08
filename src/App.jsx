@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
-import AdminPage from './pages/AdminPage'
 import AdminDashboardPage from './pages/AdminDashboardPage'
 import AdminOrdersPage from './pages/AdminOrdersPage'
 import AdminProductsPage from './pages/AdminProductsPage'
@@ -81,7 +80,7 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<AdminPage />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
         {/* Overview */}
         <Route path="dashboard" element={<AdminDashboardPage />} />
         {/* Sales Management */}

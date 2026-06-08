@@ -78,32 +78,34 @@ function HomePage() {
   const [feedback, setFeedback] = useState('')
   const [progress, setProgress] = useState(100)
 
-  useEffect(() => {
-    let mounted = true
-
-    Promise.allSettled([getProducts(), getCategories()]).then((results) => {
-      if (!mounted) return
-
-      const productResult = results[0]
-      const categoryResult = results[1]
-
-      if (productResult.status === 'fulfilled' && Array.isArray(productResult.value)) {
-        setProducts(productResult.value.slice(0, 10))
-      } else {
-        setProducts([])
+  // Thay đoạn hiện tại bằng đoạn này:
+useEffect(() => {
+  let active = true;
+  async function loadData() {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      // Gọi API danh mục
+      const [prodRes, catRes] = await Promise.all([
+        fetch(`${API_URL}/api/products`),
+        fetch(`${API_URL}/api/categories`)
+      ]);
+      
+      const prodData = await prodRes.json();
+      const catData = await catRes.json();
+      
+      if (active) {
+        setProducts(Array.isArray(prodData) ? prodData : []);
+        setCategories(Array.isArray(catData) ? catData : []); // Lưu vào state categories
+        setLoadingProducts(false);
+        setLoadingCategories(false);
       }
-
-      if (categoryResult.status === 'fulfilled' && Array.isArray(categoryResult.value)) {
-        setCategories(categoryResult.value)
-      } else {
-        setCategories([])
-      }
-    })
-
-    return () => {
-      mounted = false
+    } catch (error) {
+      console.error('Lỗi tải dữ liệu:', error);
     }
-  }, [])
+  }
+  loadData();
+  return () => { active = false };
+}, []);
 
   // Tự động ẩn thông báo sau 3 giây và chạy thanh progress
   useEffect(() => {
