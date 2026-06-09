@@ -9,12 +9,10 @@ function AdminCategoriesPage() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   
-  // State quản lý form Thêm/Sửa
+  // State quản lý form Thêm/Sửa (Đã đổi sang dùng URL ảnh)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [categoryForm, setCategoryForm] = useState({ name: '' })
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
+  const [categoryForm, setCategoryForm] = useState({ name: '', imageUrl: '' })
 
   const fetchCategories = async () => {
     setLoading(true)
@@ -41,26 +39,17 @@ function AdminCategoriesPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null)
-    setCategoryForm({ name: '' })
-    setImageFile(null)
-    setImagePreview(null)
+    setCategoryForm({ name: '', imageUrl: '' })
     setIsModalOpen(true)
   }
 
   const handleOpenEdit = (category) => {
     setEditingId(category.id)
-    setCategoryForm({ name: category.name || category.categoryName || '' })
-    setImageFile(null)
-    setImagePreview(category.imageUrl || category.image || null)
+    setCategoryForm({ 
+      name: category.name || category.categoryName || '',
+      imageUrl: category.imageUrl || category.image || ''
+    })
     setIsModalOpen(true)
-  }
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
-    }
   }
 
   const handleSubmit = async (e) => {
@@ -70,21 +59,20 @@ function AdminCategoriesPage() {
       const url = editingId ? `${API_URL}/api/admin/categories/${editingId}` : `${API_URL}/api/admin/categories`
       const method = editingId ? 'PUT' : 'POST'
 
-      const formData = new FormData()
-      formData.append('category', JSON.stringify({
-        name: categoryForm.name
-      }))
-
-      if (imageFile) {
-        formData.append('image', imageFile)
+      // FIX LỖI BLANK: Phải gửi JSON thuần túy vì API Category không hỗ trợ multipart
+      const payload = {
+        name: categoryForm.name,
+        imageUrl: categoryForm.imageUrl,
+        image: categoryForm.imageUrl // Gửi dự phòng cả 2 key ảnh
       }
 
       const response = await fetch(url, {
         method: method,
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: formData
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
@@ -178,19 +166,23 @@ function AdminCategoriesPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Hình ảnh</label>
-                <label className="block border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:bg-slate-50 transition relative overflow-hidden h-40">
-                  <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
-                  {imagePreview ? (
-                    <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-contain bg-white" />
-                  ) : (
-                    <div className="text-slate-500 mt-4">
-                      <span className="material-symbols-outlined text-3xl">add_photo_alternate</span>
-                      <p className="text-sm mt-1">Bấm để chọn ảnh</p>
-                    </div>
-                  )}
-                </label>
+                <label className="text-sm font-bold text-slate-700">Link Hình ảnh (URL)</label>
+                <input 
+                  type="url" 
+                  value={categoryForm.imageUrl} 
+                  onChange={e => setCategoryForm({...categoryForm, imageUrl: e.target.value})} 
+                  className="w-full border rounded-xl px-4 py-3 outline-none focus:border-sky-500" 
+                  placeholder="https://example.com/image.png" 
+                />
+                <p className="text-xs text-slate-500 mt-1">Dán địa chỉ (URL) hình ảnh vào đây để hiển thị ở trang chủ.</p>
               </div>
+
+              {/* Xem trước ảnh nếu có Link */}
+              {categoryForm.imageUrl && (
+                <div className="h-40 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                   <img src={categoryForm.imageUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} />
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 border rounded-full py-3 font-bold text-slate-700 hover:bg-slate-50">Hủy</button>
