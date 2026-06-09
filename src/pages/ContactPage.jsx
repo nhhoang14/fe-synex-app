@@ -12,16 +12,49 @@ function ContactPage() {
     topic: '',
     message: '',
   })
+  
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading] = useState(false) // Thêm state xử lý loading khi đang gửi API
 
   function handleChange(event) {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
   }
 
-  function handleSubmit(event) {
+  // FIX: Chuyển thành async function và gọi API POST lên Backend
+  async function handleSubmit(event) {
     event.preventDefault()
-    setSubmitted(true)
+    setLoading(true)
+
+    try {
+      // Sử dụng biến môi trường hoặc fallback về localhost
+      const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      
+      // Gọi API POST gửi thông tin (Backend thường mở Public cho endpoint này, không cần token)
+      const response = await fetch(`${API_URL}/api/contact-messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(form)
+      })
+
+      if (!response.ok) {
+        throw new Error('Không thể gửi yêu cầu lúc này. Vui lòng thử lại sau!')
+      }
+
+      setSubmitted(true)
+      // Reset form cho sạch sẽ sau khi gửi thành công
+      setForm({ fullName: '', email: '', phone: '', topic: '', message: '' })
+      
+      // Ẩn thông báo thành công sau 5 giây (Tùy chọn)
+      setTimeout(() => setSubmitted(false), 5000)
+
+    } catch (error) {
+      alert(error.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -109,9 +142,16 @@ function ContactPage() {
 
           <form
             id="contact-form"
-            className="rounded-[28px] border border-border bg-white p-8 shadow-sm scroll-mt-24"
+            className="rounded-[28px] border border-border bg-white p-8 shadow-sm scroll-mt-24 relative"
             onSubmit={handleSubmit}
           >
+            {/* Lớp phủ mờ khi đang tải dữ liệu */}
+            {loading && (
+              <div className="absolute inset-0 z-10 rounded-[28px] bg-white/50 backdrop-blur-sm flex items-center justify-center">
+                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-sky-500 border-t-transparent"></div>
+              </div>
+            )}
+
             <h2 className="text-3xl font-bold text-ink">Gửi yêu cầu cho Synex</h2>
             <p className="mt-2 text-slate-700">
               Điền thông tin để đội ngũ của chúng tôi liên hệ lại sớm nhất.
@@ -166,6 +206,7 @@ function ContactPage() {
                   name="topic"
                   value={form.topic}
                   onChange={handleChange}
+                  required
                   className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
                 >
                   <option value="">Chọn chủ đề</option>
@@ -191,13 +232,17 @@ function ContactPage() {
 
             <button
               type="submit"
-              className="mt-5 rounded-full bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
+              disabled={loading}
+              className="mt-5 rounded-full bg-slate-900 px-7 py-3 font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-400 flex items-center gap-2"
             >
-              Gửi yêu cầu
+              {loading ? 'Đang gửi...' : 'Gửi yêu cầu'}
             </button>
 
             {submitted && (
-              <p className="mt-3 text-sm text-slate-600">Đã ghi nhận thông tin. Cảm ơn bạn!</p>
+              <div className="mt-4 rounded-xl bg-emerald-50 border border-emerald-100 p-4 flex gap-3 text-emerald-700">
+                <span className="material-symbols-outlined">check_circle</span>
+                <p className="text-sm font-medium">Đã gửi thành công! Đội ngũ Synex sẽ liên hệ lại với bạn sớm nhất.</p>
+              </div>
             )}
           </form>
         </section>

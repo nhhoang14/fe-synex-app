@@ -9,10 +9,14 @@ function AdminCategoriesPage() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   
-  // State quản lý form Thêm/Sửa (Đã đổi sang dùng URL ảnh)
+  // State quản lý form Thêm/Sửa
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [categoryForm, setCategoryForm] = useState({ name: '', imageUrl: '' })
+  const [categoryForm, setCategoryForm] = useState({ name: '' })
+  
+  // Thêm State để lưu File ảnh vật lý và Link preview ảo
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
 
   const fetchCategories = async () => {
     setLoading(true)
@@ -39,17 +43,30 @@ function AdminCategoriesPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null)
-    setCategoryForm({ name: '', imageUrl: '' })
+    setCategoryForm({ name: '' })
+    setImageFile(null)
+    setImagePreview(null)
     setIsModalOpen(true)
   }
 
   const handleOpenEdit = (category) => {
     setEditingId(category.id)
     setCategoryForm({ 
-      name: category.name || category.categoryName || '',
-      imageUrl: category.imageUrl || category.image || ''
+      name: category.name || category.categoryName || ''
     })
+    // Nạp lại ảnh cũ (nếu có) để xem trước
+    setImagePreview(category.imageUrl || category.image || null)
+    setImageFile(null) // Reset file up mới
     setIsModalOpen(true)
+  }
+
+  // Hàm xử lý khi chọn ảnh từ máy tính
+  const handleImageChange = (e) => {
+    const file = e.target.files[0]
+    if (file) {
+      setImageFile(file)
+      setImagePreview(URL.createObjectURL(file)) // Tạo link ảo để hiện preview ngay lập tức
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -59,20 +76,25 @@ function AdminCategoriesPage() {
       const url = editingId ? `${API_URL}/api/admin/categories/${editingId}` : `${API_URL}/api/admin/categories`
       const method = editingId ? 'PUT' : 'POST'
 
-      // FIX LỖI BLANK: Phải gửi JSON thuần túy vì API Category không hỗ trợ multipart
-      const payload = {
-        name: categoryForm.name,
-        imageUrl: categoryForm.imageUrl,
-        image: categoryForm.imageUrl // Gửi dự phòng cả 2 key ảnh
+      const formData = new FormData()
+      formData.append('name', categoryForm.name)
+      
+      // FIX: Đẩy file vật lý lên với key 'imageFile' khớp với CategoryRequest.java
+      if (imageFile) {
+        formData.append('imageFile', imageFile)
+      }
+      
+      if (editingId) {
+        formData.append('id', editingId)
       }
 
       const response = await fetch(url, {
         method: method,
         headers: {
-          'Content-Type': 'application/json',
+          // Không set Content-Type để trình duyệt tự build multipart/form-data
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(payload)
+        body: formData
       })
 
       if (!response.ok) {
@@ -165,24 +187,22 @@ function AdminCategoriesPage() {
                 <input required value={categoryForm.name} onChange={e => setCategoryForm({...categoryForm, name: e.target.value})} className="w-full border rounded-xl px-4 py-3 outline-none focus:border-sky-500" placeholder="VD: Ốp lưng" />
               </div>
 
+              {/* KHU VỰC UPLOAD ẢNH VẬT LÝ */}
               <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Link Hình ảnh (URL)</label>
-                <input 
-                  type="url" 
-                  value={categoryForm.imageUrl} 
-                  onChange={e => setCategoryForm({...categoryForm, imageUrl: e.target.value})} 
-                  className="w-full border rounded-xl px-4 py-3 outline-none focus:border-sky-500" 
-                  placeholder="https://example.com/image.png" 
-                />
-                <p className="text-xs text-slate-500 mt-1">Dán địa chỉ (URL) hình ảnh vào đây để hiển thị ở trang chủ.</p>
+                <label className="text-sm font-bold text-slate-700">Hình ảnh danh mục</label>
+                <label className="block border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100 cursor-pointer transition relative overflow-hidden h-48">
+                  <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-contain bg-white" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full">
+                      <span className="material-symbols-outlined text-4xl text-slate-400">cloud_upload</span>
+                      <p className="mt-2 text-sm text-slate-500 font-medium">Bấm để tải ảnh lên</p>
+                      <p className="text-xs text-slate-400 mt-1">Hỗ trợ JPG, PNG</p>
+                    </div>
+                  )}
+                </label>
               </div>
-
-              {/* Xem trước ảnh nếu có Link */}
-              {categoryForm.imageUrl && (
-                <div className="h-40 w-full rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                   <img src={categoryForm.imageUrl} alt="Preview" className="w-full h-full object-contain" onError={(e) => e.target.style.display = 'none'} />
-                </div>
-              )}
 
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 border rounded-full py-3 font-bold text-slate-700 hover:bg-slate-50">Hủy</button>

@@ -274,9 +274,9 @@ function AdminProductsPage() {
   const handleVariantImageUpload = async (index, file, event) => {
     if (!file) return;
     try {
+      // 1. TẢI ẢNH LÊN SERVER NGAY LẬP TỨC THEO Ý BẠN
       const formData = new FormData(); 
       formData.append('file', file); 
-      // FIX TỬ HUYỆT: Dùng chung 'PRODUCT_IMAGE' để Spring Boot không báo lỗi Enum
       formData.append('purpose', 'PRODUCT_IMAGE');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
       
@@ -286,7 +286,6 @@ function AdminProductsPage() {
         body: formData 
       });
       
-      // Bắt lỗi rành mạch từ Backend
       if (!res.ok) {
         const errText = await res.text();
         let errMsg = errText;
@@ -299,14 +298,18 @@ function AdminProductsPage() {
       
       const data = await res.json();
       const updatedVariants = [...generatedVariants];
-      // Hứng chính xác biến URL (bao cả 2 định dạng trả về phổ biến)
+      
+      // 2. Gán link thật trả về từ server để hiển thị UI
       updatedVariants[index].imageUrl = data.url || data.imageUrl; 
+      
+      // 3. VẪN NGẦM GIỮ LẠI FILE VẬT LÝ để đẩy lên FormData khi ấn "Lưu Sản Phẩm"
+      updatedVariants[index].rawFile = file;
+      
       setGeneratedVariants(updatedVariants);
       
     } catch (err) { 
       alert(`Backend từ chối ảnh: ${err.message}`); 
     } finally {
-      // FIX UX: Xóa file khỏi ô input để lỡ bấm nhầm vẫn có thể chọn lại chính ảnh đó
       if (event && event.target) event.target.value = null;
     }
   };
@@ -314,52 +317,44 @@ function AdminProductsPage() {
     e.preventDefault();
     
     try {
-      // 1. Chuẩn bị Payload
-      const productPayload = {
-        name: basicInfo.name,
-        categoryId: basicInfo.category ? Number(basicInfo.category) : null, 
-        brandId: basicInfo.brand ? Number(basicInfo.brand) : null,       
-        description: basicInfo.description,
-        // ... (các thông tin basicInfo khác giữ nguyên)
-        variants: generatedVariants.map((v, i) => {
-          // Khôi phục mảng Attributes chuẩn cho Backend Spring Boot
-          const formattedAttributes = [];
-          if (v.attributes && !v.attributes['Phiên bản']) {
-            for (const [key, val] of Object.entries(v.attributes)) {
-              formattedAttributes.push({ name: key, value: String(val) });
-            }
-          }
-
-          return {
-            ...(currentView === 'edit' && v.id ? { id: v.id } : {}),
-            sku: (v.sku || `MS-${Date.now().toString().slice(-4)}-${i}`).trim(), 
-            price: Number(v.price) || 0, 
-            stockQuantity: Number(v.stock) || 0,
-            imageUrl: v.imageUrl || null,
-            attributes: formattedAttributes, // Truyền đúng mảng Thuộc tính Backend yêu cầu
-            active: v.active !== false       // Trạng thái bật tắt
-          }
-        })
-      };
-
-      // 2. Tạo FormData
+      // FIX: Bắt buộc dùng FormData và gửi dạng mảng index chuẩn Spring Boot (VD: variants[0].sku)
       const formData = new FormData();
-      formData.append('product', JSON.stringify(productPayload));
+      
+      formData.append('name', basicInfo.name);
+      formData.append('description', basicInfo.description);
+      if (basicInfo.category) formData.append('categoryId', Number(basicInfo.category));
+      if (basicInfo.brand) formData.append('brandId', Number(basicInfo.brand));
 
+      // Khớp chính xác tên 'productImages' trong ProductRequest.java
       if (imageFile) {
-        formData.append('image', imageFile);
+        formData.append('productImages', imageFile);
       }
+
+      let activeIndex = 0;
+      generatedVariants.forEach((v) => {
+        if (v.active !== false) {
+          // Khớp chính xác các tên biến trong ProductVariantRequest.java
+          formData.append(`variants[${activeIndex}].sku`, (v.sku || `MS-${Date.now().toString().slice(-4)}-${activeIndex}`).trim());
+          formData.append(`variants[${activeIndex}].price`, Number(v.price) || 0);
+          formData.append(`variants[${activeIndex}].stock`, Number(v.stock) || 0); // Sửa 'stockQuantity' thành 'stock'
+          
+          if (v.rawFile) {
+            formData.append(`variants[${activeIndex}].variantImage`, v.rawFile); // File ảnh riêng của biến thể
+          }
+          activeIndex++;
+        }
+      });
 
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
       const url = editingProductId 
         ? `${API_URL}/api/admin/products/${editingProductId}` 
         : `${API_URL}/api/admin/products`;
-      const requestMethod = editingProductId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
-        method: requestMethod,
+        method: editingProductId ? 'PUT' : 'POST',
         headers: {
           Authorization: `Bearer ${token}`
+          // Trình duyệt tự sinh boundary cho multipart/form-data
         },
         body: formData
       });

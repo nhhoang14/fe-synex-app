@@ -33,6 +33,11 @@ function CheckoutPage() {
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [selectedAddressId, setSelectedAddressId] = useState('')
 
+  // --- QUẢN LÝ THANH TOÁN QR ---
+  const [qrOrder, setQrOrder] = useState(null) // Lưu thông tin đơn hàng để sinh QR {id, code, amount}
+  const [timeLeft, setTimeLeft] = useState(1200) // 20 phút = 1200 giây
+  const [qrFailed, setQrFailed] = useState(false) // Trạng thái khi hết giờ hoặc BE báo CANCEL
+ 
   // --- QUẢN LÝ MODAL ĐỊA CHỈ ---
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false)
   const [editingAddressId, setEditingAddressId] = useState(null)
@@ -107,6 +112,51 @@ function CheckoutPage() {
         .catch(err => console.error(err))
     }
   }, [newAddress.city, provinces])
+  // Đếm ngược thời gian QR (20 phút)
+  useEffect(() => {
+    let timer
+    if (qrOrder && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1)
+      }, 1000)
+    }
+    return () => clearInterval(timer)
+  }, [qrOrder, timeLeft])
+
+  // Polling check trạng thái đơn hàng liên tục
+  useEffect(() => {
+    let interval
+    if (qrOrder && timeLeft > 0) {
+      interval = setInterval(async () => {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+          const res = await fetch(`${API_URL}/api/orders/${qrOrder.id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          const data = await res.json()
+          
+          // NẾU BE CHUYỂN TRẠNG THÁI THÀNH SHIPPING -> THÀNH CÔNG
+          if (data.status === 'SHIPPING') {
+            setQrOrder(null)
+            setOrderSuccess(true)
+            await fetchCart()
+          } 
+          // NẾU BE HỦY ĐƠN -> THẤT BẠI
+          else if (data.status === 'CANCEL' || data.status === 'CANCELLED') {
+            setQrOrder(null)
+            setQrFailed(true)
+          }
+        } catch (error) {
+          console.error("Lỗi khi check trạng thái:", error)
+        }
+      }, 3000) // Call API 3 giây 1 lần
+    } else if (timeLeft === 0 && qrOrder) {
+      // HẾT GIỜ -> THẤT BẠI
+      setQrOrder(null)
+      setQrFailed(true)
+    }
+    return () => clearInterval(interval)
+  }, [qrOrder, timeLeft, token, fetchCart])
 
   const handleOpenAddModal = () => {
     if (addresses.length >= 3) {
@@ -285,7 +335,27 @@ function CheckoutPage() {
         shippingAddressId: Number(selectedAddressId) 
       }
 
-      await createOrder(token, payload)
+      // GỌI API TẠO ĐƠN
+      const response = await createOrder(token, payload)
+      
+      // KIỂM TRA PHƯƠNG THỨC THANH TOÁN 
+      // (Lưu ý: Thay 'CARD' hoặc 'BANK' bằng đúng value bạn định nghĩa trong PAYMENT_METHODS)
+      if (paymentMethod !== 'COD') {
+        // Lấy mã đơn hàng BE trả về. Nếu BE trả về biến tên khác (như orderTrackingNumber), hãy đổi lại cho khớp.
+        // Cần đảm bảo mã bắt đầu bằng "DH..." như yêu cầu.
+        const returnedCode = response.orderCode || response.orderTrackingNumber || `DH${response.id}`
+        
+        setQrOrder({
+          id: response.id,
+          code: returnedCode,
+          amount: finalTotal
+        })
+        setTimeLeft(1200) // Reset 20 phút
+      } else {
+        // LUỒNG THANH TOÁN KHI NHẬN HÀNG (COD)
+        setOrderSuccess(true)
+        await fetchCart()
+      }
       // SỬA TẠI ĐÂY: Bật popup thay vì chỉ hiện dòng chữ
       setOrderSuccess(true)
       await fetchCart()
@@ -646,6 +716,77 @@ function CheckoutPage() {
                 Xem đơn hàng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MODAL QR THANH TOÁN */}
+      {qrOrder && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-2xl p-8 text-center relative">
+            <h3 className="mb-2 text-2xl font-bold text-slate-900">Quét mã thanh toán</h3>
+            <p className="text-sm text-slate-500 mb-6">Sử dụng App ngân hàng để quét mã. Đơn hàng sẽ tự động duyệt khi thanh toán thành công.</p>
+            
+            {/* ĐỒNG HỒ ĐẾM NGƯỢC */}
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-2">
+              <span className="material-symbols-outlined text-red-500 text-lg">timer</span>
+              <span className="font-bold text-red-600 text-lg tracking-widest">
+                {String(Math.floor(timeLeft / 60)).padStart(2, '0')}:{String(timeLeft % 60).padStart(2, '0')}
+              </span>
+            </div>
+
+            {/* MÃ VIETQR DYNAMIC */}
+            <div className="mx-auto bg-slate-50 p-4 rounded-2xl border border-slate-200 mb-6 w-fit">
+              <img 
+                src={`https://img.vietqr.io/image/mb-1166661403-compact2.png?amount=${qrOrder.amount}&addInfo=${qrOrder.code}&accountName=SYNEX`} 
+                alt="QR Code Thanh Toán" 
+                className="w-64 h-64 object-contain rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-3 text-sm text-slate-700 bg-slate-50 p-4 rounded-2xl text-left border border-slate-100">
+              <p className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="font-medium text-slate-500">Ngân hàng:</span> 
+                <span className="font-bold text-ink">MB Bank</span>
+              </p>
+              <p className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="font-medium text-slate-500">Số tài khoản:</span> 
+                <span className="font-bold text-ink">1166661403</span>
+              </p>
+              <p className="flex justify-between border-b border-slate-200 pb-2">
+                <span className="font-medium text-slate-500">Số tiền:</span> 
+                <span className="font-bold text-red-600">{formatCurrency(qrOrder.amount)}</span>
+              </p>
+              <p className="flex justify-between">
+                <span className="font-medium text-slate-500">Nội dung CK:</span> 
+                <span className="font-bold text-sky-600">{qrOrder.code}</span>
+              </p>
+            </div>
+            
+            <p className="mt-4 text-[13px] text-slate-400 italic animate-pulse">Hệ thống đang chờ xác nhận thanh toán...</p>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL THANH TOÁN THẤT BẠI / QUÁ HẠN */}
+      {qrFailed && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-2xl p-8 text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-100">
+              <span className="material-symbols-outlined text-[40px] text-red-600">error</span>
+            </div>
+            <h3 className="mb-3 text-2xl font-bold text-slate-900">Thanh toán thất bại</h3>
+            <p className="mb-8 text-sm text-slate-600 leading-relaxed">
+              Đơn hàng đã quá thời gian thanh toán hoặc đã bị hủy. Vui lòng đặt lại đơn hàng mới.
+            </p>
+            <button
+              onClick={() => {
+                setQrFailed(false)
+                navigate(ROUTES.CART)
+              }}
+              className="w-full rounded-full bg-slate-900 px-6 py-4 text-sm font-bold text-white hover:bg-slate-800 transition shadow-sm"
+            >
+              Quay lại giỏ hàng
+            </button>
           </div>
         </div>
       )}

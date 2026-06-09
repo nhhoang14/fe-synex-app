@@ -1,132 +1,208 @@
-import { usePageTitle } from '../hooks/usePageTitle'
+import React, { useEffect, useState } from 'react';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { useAuth } from '../contexts/AuthContext';
 
-function AdminReviewsPage() {
-  usePageTitle('Quản lý Đánh giá & Bình luận')
+function AdminContactsPage() {
+  usePageTitle('Quản lý Phản hồi Liên hệ - Synex');
+  
+  const { token } = useAuth();
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Gọi API lấy danh sách liên hệ
+  const fetchMessages = async () => {
+    setLoading(true);
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}/api/admin/contact-messages`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Không thể tải danh sách liên hệ');
+      
+      const data = await response.json();
+      // Xử lý trường hợp backend trả về Pageable hoặc Array
+      setMessages(Array.isArray(data) ? data : (data.content || []));
+    } catch (error) {
+      console.error('Lỗi tải dữ liệu:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) fetchMessages();
+  }, [token]);
+
+  // Hàm mapping chủ đề từ value sang text hiển thị (Dựa trên ContactPage.jsx)
+  const getTopicName = (topicValue) => {
+    switch (topicValue) {
+      case 'bao-gia': return 'Báo giá doanh nghiệp';
+      case 'bao-hanh': return 'Bảo hành - kỹ thuật';
+      case 'don-hang': return 'Đơn hàng - vận chuyển';
+      default: return topicValue || 'Chủ đề khác';
+    }
+  };
+
+  // Hàm xử lý duyệt / Đánh dấu đã xử lý
+  const handleMarkAsProcessed = async (id) => {
+    if (!window.confirm('Đánh dấu liên hệ này là "Đã xử lý"?')) return;
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      // Giả định backend có API PUT để update status. Thay đổi đường dẫn nếu BE của bạn thiết kế khác
+      const response = await fetch(`${API_URL}/api/admin/contact-messages/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ status: 'RESOLVED' }) // Hoặc isProcessed: true tùy Backend
+      });
+
+      if (!response.ok) throw new Error('Cập nhật thất bại');
+      
+      alert('Đã cập nhật trạng thái thành công!');
+      fetchMessages();
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  // Hàm xóa liên hệ
+  const handleDelete = async (id) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa liên hệ này? Hành động này không thể hoàn tác.')) return;
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}/api/admin/contact-messages/${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Xóa thất bại');
+      
+      alert('Đã xóa phản hồi liên hệ');
+      fetchMessages();
+    } catch (error) {
+      alert(error.message);
+    }
+  };
+
+  // Tính toán thống kê
+  const totalMessages = messages.length;
+  const pendingMessages = messages.filter(m => m.status === 'PENDING' || m.status === 'Chưa duyệt' || !m.isProcessed).length;
+  const processedMessages = totalMessages - pendingMessages;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Quản lý Đánh giá & Bình luận</h1>
-        <p className="mt-2 text-gray-600">Duyệt và ẩn đánh giá từ khách hàng, phản hồi bình luận</p>
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900">Quản lý Phản hồi Liên hệ</h1>
+        <p className="mt-2 text-gray-600">Theo dõi, phản hồi và quản lý các yêu cầu từ trang Liên hệ của khách hàng</p>
       </div>
 
-      {/* Review Stats */}
-      <div className="grid gap-6 md:grid-cols-4">
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-medium text-gray-600">Tất Cả Đánh Giá</p>
-          <p className="mt-2 text-3xl font-bold text-gray-900">234</p>
+      {/* Thống kê (Stats) */}
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-center">
+          <p className="text-sm font-medium text-gray-600">Tổng Phản Hồi</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900">{loading ? '...' : totalMessages}</p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-medium text-gray-600">Chưa Duyệt</p>
-          <p className="mt-2 text-3xl font-bold text-yellow-600">12</p>
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-center">
+          <p className="text-sm font-medium text-gray-600">Chưa Xử Lý</p>
+          <p className="mt-2 text-3xl font-bold text-yellow-600">{loading ? '...' : pendingMessages}</p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-medium text-gray-600">Đã Duyệt</p>
-          <p className="mt-2 text-3xl font-bold text-green-600">218</p>
-        </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-medium text-gray-600">Bị Ẩn</p>
-          <p className="mt-2 text-3xl font-bold text-red-600">4</p>
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-center">
+          <p className="text-sm font-medium text-gray-600">Đã Phản Hồi</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-600">{loading ? '...' : processedMessages}</p>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
-        <input
-          type="text"
-          placeholder="Tìm kiếm bình luận..."
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
-        />
-        <select className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none">
-          <option>Tất cả trạng thái</option>
-          <option>Chưa duyệt</option>
-          <option>Đã duyệt</option>
-          <option>Bị ẩn</option>
-        </select>
-        <select className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none">
-          <option>Tất cả đánh giá</option>
-          <option>⭐⭐⭐⭐⭐ 5 sao</option>
-          <option>⭐⭐⭐⭐ 4 sao</option>
-          <option>⭐⭐⭐ 3 sao</option>
-        </select>
-      </div>
-
-      {/* Reviews List */}
-      <div className="space-y-4">
-        {[
-          {
-            customer: 'Nguyễn Văn A',
-            product: 'Apple AirPods Pro',
-            rating: 5,
-            title: 'Sản phẩm tuyệt vời!',
-            comment: 'Âm thanh rất tốt, pin lâu, đóng gói kỹ lưỡng. Rất hài lòng với mua hàng này!',
-            status: 'Đã duyệt',
-            date: '2 ngày trước',
-          },
-          {
-            customer: 'Trần Thị B',
-            product: 'Anker PowerBank',
-            rating: 4,
-            title: 'Tốt nhưng hơi nặng',
-            comment: 'Dung lượng lớn, sạc nhanh nhưng hơi nặng khi mang theo.',
-            status: 'Chưa duyệt',
-            date: '1 giờ trước',
-          },
-        ].map((review, index) => (
-          <div key={index} className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{review.customer}</h3>
-                    <p className="text-sm text-gray-600">{review.product}</p>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="flex gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <span
-                        key={i}
-                        className={`text-lg ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}`}
-                      >
-                        ★
+      {/* Danh sách Liên hệ */}
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="border-b border-gray-200 bg-slate-50 px-6 py-4">
+          <h2 className="font-semibold text-gray-900">Danh sách yêu cầu mới nhất</h2>
+        </div>
+        
+        <div className="divide-y divide-gray-100">
+          {loading ? (
+            <p className="p-6 text-center text-gray-500">Đang tải dữ liệu...</p>
+          ) : messages.length === 0 ? (
+            <p className="p-6 text-center text-gray-500">Chưa có phản hồi liên hệ nào.</p>
+          ) : (
+            messages.map((msg) => {
+              // Phân tích trạng thái (Hỗ trợ nhiều kiểu format Backend trả về)
+              const isPending = msg.status === 'PENDING' || msg.status === 'Chưa duyệt' || !msg.isProcessed;
+              
+              return (
+                <div key={msg.id} className="p-6 transition hover:bg-slate-50 flex flex-col md:flex-row justify-between gap-6">
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h4 className="font-bold text-gray-900 text-lg">{msg.fullName || msg.name}</h4>
+                      <span className="text-sm font-medium text-sky-600 bg-sky-50 px-2.5 py-0.5 rounded-full">
+                        {getTopicName(msg.topic)}
                       </span>
-                    ))}
+                    </div>
+                    
+                    <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-500 font-medium">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">mail</span> {msg.email}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">call</span> {msg.phone}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">calendar_today</span> 
+                        {msg.createdAt ? new Date(msg.createdAt).toLocaleString('vi-VN') : 'Không rõ thời gian'}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 bg-white border border-gray-100 rounded-xl p-4 text-gray-700 text-sm leading-relaxed shadow-sm">
+                      <p className="font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Nội dung tin nhắn</p>
+                      {msg.message}
+                    </div>
                   </div>
-                  <span className="text-sm text-gray-600">({review.rating}/5)</span>
+
+                  <div className="flex flex-col gap-3 md:items-end justify-start min-w-[140px]">
+                    <span
+                      className={[
+                        'inline-flex items-center justify-center rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap border',
+                        isPending
+                          ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                      ].join(' ')}
+                    >
+                      {isPending ? 'Chưa xử lý' : 'Đã xử lý'}
+                    </span>
+                    
+                    <div className="flex gap-2 mt-2">
+                      {isPending && (
+                        <button 
+                          onClick={() => handleMarkAsProcessed(msg.id)}
+                          className="flex items-center justify-center h-9 w-9 rounded-lg text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-700 transition" 
+                          title="Đánh dấu đã xử lý"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleDelete(msg.id)}
+                        className="flex items-center justify-center h-9 w-9 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700 transition" 
+                        title="Xóa liên hệ"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">delete</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <h4 className="mt-3 font-medium text-gray-900">{review.title}</h4>
-                <p className="mt-2 text-sm text-gray-600">{review.comment}</p>
-                <p className="mt-2 text-xs text-gray-500">{review.date}</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <span
-                  className={[
-                    'inline-block rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap',
-                    review.status === 'Đã duyệt'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-yellow-100 text-yellow-800',
-                  ].join(' ')}
-                >
-                  {review.status}
-                </span>
-                <div className="flex gap-2">
-                  {review.status === 'Chưa duyệt' && (
-                    <button className="text-green-600 hover:text-green-700 transition" title="Duyệt">
-                      <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                    </button>
-                  )}
-                  <button className="text-red-600 hover:text-red-700 transition" title="Ẩn đánh giá">
-                    <span className="material-symbols-outlined text-[18px]">visibility_off</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default AdminReviewsPage
+export default AdminContactsPage;
