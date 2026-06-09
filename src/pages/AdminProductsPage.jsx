@@ -259,6 +259,39 @@ function AdminProductsPage() {
     }
   }
 
+  // --- TÍNH NĂNG MỚI: BẬT/TẮT, XÓA, UPLOAD ẢNH CHO TỪNG BIẾN THỂ ---
+  const handleToggleVariant = (index) => {
+    const updated = [...generatedVariants];
+    updated[index].active = !updated[index].active;
+    setGeneratedVariants(updated);
+  }
+
+  const handleDeleteVariant = (index) => {
+    if (!window.confirm('Bạn có chắc muốn xóa biến thể này khỏi danh sách?')) return;
+    setGeneratedVariants(generatedVariants.filter((_, i) => i !== index));
+  }
+
+  const handleVariantImageUpload = async (index, file) => {
+    if (!file) return;
+    try {
+      const formData = new FormData(); 
+      formData.append('file', file); 
+      formData.append('purpose', 'VARIANT_IMAGE');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      
+      const res = await fetch(`${API_URL}/api/uploads/images`, { 
+        method: 'POST', 
+        headers: { Authorization: `Bearer ${token}` }, 
+        body: formData 
+      });
+      if (!res.ok) throw new Error('Lỗi upload ảnh biến thể');
+      
+      const data = await res.json();
+      const updatedVariants = [...generatedVariants];
+      updatedVariants[index].imageUrl = data.url;
+      setGeneratedVariants(updatedVariants);
+    } catch (err) { alert(err.message); }
+  };
   async function handleSaveProduct(e) {
     e.preventDefault();
     
@@ -269,26 +302,25 @@ function AdminProductsPage() {
         categoryId: basicInfo.category ? Number(basicInfo.category) : null, 
         brandId: basicInfo.brand ? Number(basicInfo.brand) : null,       
         description: basicInfo.description,
-        variants: generatedVariants.map(variant => {
-          // --- FIX LỖI 400 BACKEND: CHUYỂN ATTRIBUTES TỪ OBJECT SANG ARRAY ---
-          // Backend cần List các thuộc tính, không phải Map.
-          // Ví dụ: Đổi {"Màu sắc": "Đen"} thành [{"name": "Màu sắc", "value": "Đen"}]
+        // ... (các thông tin basicInfo khác giữ nguyên)
+        variants: generatedVariants.map((v, i) => {
+          // Khôi phục mảng Attributes chuẩn cho Backend Spring Boot
           const formattedAttributes = [];
-          if (variant.attributes) {
-            for (const [key, val] of Object.entries(variant.attributes)) {
-              formattedAttributes.push({
-                name: key,
-                value: String(val)
-              });
+          if (v.attributes && !v.attributes['Phiên bản']) {
+            for (const [key, val] of Object.entries(v.attributes)) {
+              formattedAttributes.push({ name: key, value: String(val) });
             }
           }
 
           return {
-            sku: variant.sku,
-            price: Number(variant.price || 0),
-            stockQuantity: Number(variant.stock || 0),
-            attributes: formattedAttributes // Truyền mảng đã format
-          };
+            ...(currentView === 'edit' && v.id ? { id: v.id } : {}),
+            sku: (v.sku || `MS-${Date.now().toString().slice(-4)}-${i}`).trim(), 
+            price: Number(v.price) || 0, 
+            stockQuantity: Number(v.stock) || 0,
+            imageUrl: v.imageUrl || null,
+            attributes: formattedAttributes, // Truyền đúng mảng Thuộc tính Backend yêu cầu
+            active: v.active !== false       // Trạng thái bật tắt
+          }
         })
       };
 
@@ -474,43 +506,52 @@ function AdminProductsPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-800 text-sm font-semibold text-slate-300">
-                      <th className="p-4 border-b border-slate-700 w-1/4">Phiên bản</th>
-                      <th className="p-4 border-b border-slate-700">SKU</th>
-                      <th className="p-4 border-b border-slate-700 w-32">Giá bán (đ)</th>
-                      <th className="p-4 border-b border-slate-700 w-28">Kho hàng</th>
-                      <th className="p-4 border-b border-slate-700 w-20 text-center">Ảnh</th>
+                      <th className="p-4 border-b border-slate-700 w-1/5">Phiên bản</th>
+                      <th className="p-4 border-b border-slate-700 w-32">SKU</th>
+                      <th className="p-4 border-b border-slate-700 w-28">Giá (đ)</th>
+                      <th className="p-4 border-b border-slate-700 w-20">Kho</th>
+                      <th className="p-4 border-b border-slate-700 w-16 text-center">Ảnh</th>
+                      <th className="p-4 border-b border-slate-700 w-28 text-center">Hành động</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700 bg-slate-900/50">
                     {generatedVariants.map((variant, index) => (
-                      <tr key={index} className="hover:bg-slate-800/50 transition">
+                      <tr key={index} className={`transition duration-300 ${variant.active === false ? 'opacity-40 grayscale' : 'hover:bg-slate-800/50'}`}>
                         <td className="p-4 text-sm text-sky-300 font-medium">
                           {Object.entries(variant.attributes).map(([key, val]) => (
                             <div key={key} className="mb-1">{key}: <span className="text-white">{val}</span></div>
                           ))}
                         </td>
                         <td className="p-4">
-                          <input 
-                            type="text" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-300 focus:border-sky-500 outline-none font-mono"
-                            value={variant.sku} onChange={(e) => handleVariantChange(index, 'sku', e.target.value)}
-                          />
+                          <input type="text" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-sm text-slate-300 focus:border-sky-500 outline-none font-mono" disabled={variant.active === false} value={variant.sku} onChange={(e) => handleVariantChange(index, 'sku', e.target.value)} />
                         </td>
                         <td className="p-4">
-                          <input 
-                            type="number" placeholder="1.200.000" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 outline-none"
-                            value={variant.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)}
-                          />
+                          <input type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-sm text-white focus:border-sky-500 outline-none" disabled={variant.active === false} value={variant.price} onChange={(e) => handleVariantChange(index, 'price', e.target.value)} />
                         </td>
                         <td className="p-4">
-                          <input 
-                            type="number" placeholder="50" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 outline-none text-center"
-                            value={variant.stock} onChange={(e) => handleVariantChange(index, 'stock', e.target.value)}
-                          />
+                          <input type="number" placeholder="0" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-sm text-white focus:border-sky-500 outline-none text-center" disabled={variant.active === false} value={variant.stock} onChange={(e) => handleVariantChange(index, 'stock', e.target.value)} />
                         </td>
                         <td className="p-4 text-center">
-                          <button className="p-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-400 hover:text-white hover:border-slate-400 transition" title="Upload ảnh riêng">
-                            <span className="material-symbols-outlined text-[18px]">image</span>
-                          </button>
+                          {/* --- NÚT UPLOAD ẢNH RIÊNG CHO BIẾN THỂ --- */}
+                          <label className="block w-10 h-10 mx-auto border border-slate-600 border-dashed rounded cursor-pointer hover:border-sky-400 transition overflow-hidden relative bg-slate-800" title="Tải ảnh biến thể">
+                            <input type="file" className="hidden" accept="image/*" disabled={variant.active === false} onChange={(e) => handleVariantImageUpload(index, e.target.files[0])} />
+                            {variant.imageUrl ? (
+                              <img src={variant.imageUrl} alt="variant" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="material-symbols-outlined text-[18px] text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">add_photo_alternate</span>
+                            )}
+                          </label>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center justify-center gap-3">
+                            {/* --- NÚT BẬT TẮT VÀ XÓA --- */}
+                            <button onClick={() => handleToggleVariant(index)} className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${variant.active !== false ? 'bg-sky-500' : 'bg-slate-600'}`} title={variant.active !== false ? 'Tắt biến thể' : 'Bật biến thể'}>
+                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${variant.active !== false ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </button>
+                            <button onClick={() => handleDeleteVariant(index)} className="p-2 text-red-400 hover:bg-slate-700 rounded-lg transition" title="Xóa biến thể">
+                              <span className="material-symbols-outlined text-[18px]">delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
