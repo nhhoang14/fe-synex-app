@@ -11,7 +11,8 @@ const ADMIN_NAV_ITEMS = [
   { to: ROUTES.ADMIN_CATEGORIES, label: 'Danh mục', icon: 'category' },
   { to: ROUTES.ADMIN_BRANDS, label: 'Thương hiệu', icon: 'business' },
   { to: ROUTES.ADMIN_PROMOTIONS, label: 'Voucher', icon: 'local_offer' },
-  { to: ROUTES.ADMIN_ANALYTICS, label: 'Thống kê', icon: 'analytics' },
+  // ĐÃ SỬA: Đổi "Thống kê" thành "Phản hồi liên hệ"
+  { to: ROUTES.ADMIN_REVIEWS, label: 'Phản hồi liên hệ', icon: 'forum' },
 ]
 
 function AdminLayout() {
@@ -32,16 +33,19 @@ function AdminLayout() {
       >
         <div className={`mb-8 ${isCollapsed ? 'px-3 flex justify-center' : 'px-6'}`}>
           {isCollapsed ? (
-            <span className="material-symbols-outlined text-[32px] text-blue-500 font-bold">
+            // ĐÃ SỬA: Tăng kích thước icon khi thu gọn (từ 32px lên 40px)
+            <span className="material-symbols-outlined text-[40px] text-blue-500 font-bold">
               automation
             </span>
           ) : (
             <div>
               <div className="mt-2 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[28px] text-blue-500" aria-hidden="true">
+                {/* ĐÃ SỬA: Tăng kích thước icon (từ 28px lên 36px) */}
+                <span className="material-symbols-outlined text-[36px] text-blue-500" aria-hidden="true">
                   automation
                 </span>
-                <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
+                {/* ĐÃ SỬA: Tăng kích thước chữ (từ text-2xl lên text-4xl) */}
+                <h1 className="text-4xl font-bold tracking-tight">{APP_NAME}</h1>
               </div>
             </div>
           )}

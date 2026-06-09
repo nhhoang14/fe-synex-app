@@ -271,12 +271,13 @@ function AdminProductsPage() {
     setGeneratedVariants(generatedVariants.filter((_, i) => i !== index));
   }
 
-  const handleVariantImageUpload = async (index, file) => {
+  const handleVariantImageUpload = async (index, file, event) => {
     if (!file) return;
     try {
       const formData = new FormData(); 
       formData.append('file', file); 
-      formData.append('purpose', 'VARIANT_IMAGE');
+      // FIX TỬ HUYỆT: Dùng chung 'PRODUCT_IMAGE' để Spring Boot không báo lỗi Enum
+      formData.append('purpose', 'PRODUCT_IMAGE');
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
       
       const res = await fetch(`${API_URL}/api/uploads/images`, { 
@@ -284,13 +285,30 @@ function AdminProductsPage() {
         headers: { Authorization: `Bearer ${token}` }, 
         body: formData 
       });
-      if (!res.ok) throw new Error('Lỗi upload ảnh biến thể');
+      
+      // Bắt lỗi rành mạch từ Backend
+      if (!res.ok) {
+        const errText = await res.text();
+        let errMsg = errText;
+        try { 
+            const errObj = JSON.parse(errText); 
+            errMsg = errObj.message || errObj.error || errText; 
+        } catch(e) {}
+        throw new Error(errMsg || 'Lỗi máy chủ khi lưu ảnh!');
+      }
       
       const data = await res.json();
       const updatedVariants = [...generatedVariants];
-      updatedVariants[index].imageUrl = data.url;
+      // Hứng chính xác biến URL (bao cả 2 định dạng trả về phổ biến)
+      updatedVariants[index].imageUrl = data.url || data.imageUrl; 
       setGeneratedVariants(updatedVariants);
-    } catch (err) { alert(err.message); }
+      
+    } catch (err) { 
+      alert(`Backend từ chối ảnh: ${err.message}`); 
+    } finally {
+      // FIX UX: Xóa file khỏi ô input để lỡ bấm nhầm vẫn có thể chọn lại chính ảnh đó
+      if (event && event.target) event.target.value = null;
+    }
   };
   async function handleSaveProduct(e) {
     e.preventDefault();
@@ -443,6 +461,7 @@ function AdminProductsPage() {
             <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium text-slate-700">Hình ảnh chung</label>
               <label className="block border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100 cursor-pointer transition relative overflow-hidden">
+                {/* FIX: Đưa thẻ input về đúng hàm của ảnh chung, xóa bỏ các biến variant/index gây lỗi crash */}
                 <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
                 {imagePreview ? (
                    <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-contain bg-white" />
@@ -534,7 +553,8 @@ function AdminProductsPage() {
                         <td className="p-4 text-center">
                           {/* --- NÚT UPLOAD ẢNH RIÊNG CHO BIẾN THỂ --- */}
                           <label className="block w-10 h-10 mx-auto border border-slate-600 border-dashed rounded cursor-pointer hover:border-sky-400 transition overflow-hidden relative bg-slate-800" title="Tải ảnh biến thể">
-                            <input type="file" className="hidden" accept="image/*" disabled={variant.active === false} onChange={(e) => handleVariantImageUpload(index, e.target.files[0])} />
+                            {/* FIX: Thêm tham số sự kiện 'e' vào cuối hàm handleVariantImageUpload */}
+                            <input type="file" className="hidden" accept="image/*" disabled={variant.active === false} onChange={(e) => handleVariantImageUpload(index, e.target.files[0], e)} />
                             {variant.imageUrl ? (
                               <img src={variant.imageUrl} alt="variant" className="w-full h-full object-cover" />
                             ) : (

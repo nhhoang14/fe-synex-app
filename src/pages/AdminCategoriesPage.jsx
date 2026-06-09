@@ -12,7 +12,7 @@ function AdminCategoriesPage() {
   // State quản lý form Thêm/Sửa
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [categoryForm, setCategoryForm] = useState({ name: '', description: '' })
+  const [categoryForm, setCategoryForm] = useState({ name: '' })
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
 
@@ -41,7 +41,7 @@ function AdminCategoriesPage() {
 
   const handleOpenAdd = () => {
     setEditingId(null)
-    setCategoryForm({ name: '', description: '' })
+    setCategoryForm({ name: '' })
     setImageFile(null)
     setImagePreview(null)
     setIsModalOpen(true)
@@ -49,7 +49,7 @@ function AdminCategoriesPage() {
 
   const handleOpenEdit = (category) => {
     setEditingId(category.id)
-    setCategoryForm({ name: category.name || category.categoryName || '', description: category.description || '' })
+    setCategoryForm({ name: category.name || category.categoryName || '' })
     setImageFile(null)
     setImagePreview(category.imageUrl || category.image || null)
     setIsModalOpen(true)
@@ -71,10 +71,8 @@ function AdminCategoriesPage() {
       const method = editingId ? 'PUT' : 'POST'
 
       const formData = new FormData()
-      // Gửi category details dưới dạng chuỗi JSON 
       formData.append('category', JSON.stringify({
-        name: categoryForm.name,
-        description: categoryForm.description
+        name: categoryForm.name
       }))
 
       if (imageFile) {
@@ -151,7 +149,6 @@ function AdminCategoriesPage() {
               </div>
               <div className="p-5 flex-1 flex flex-col">
                 <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{category.name || category.categoryName}</h3>
-                <p className="mt-2 text-sm text-gray-600 line-clamp-2 flex-1">{category.description || 'Chưa có mô tả'}</p>
                 <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2 justify-end">
                   <button onClick={() => handleOpenEdit(category)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition" title="Chỉnh sửa">
                     <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -178,11 +175,6 @@ function AdminCategoriesPage() {
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700">Tên danh mục <span className="text-red-500">*</span></label>
                 <input required value={categoryForm.name} onChange={e => setCategoryForm({...categoryForm, name: e.target.value})} className="w-full border rounded-xl px-4 py-3 outline-none focus:border-sky-500" placeholder="VD: Ốp lưng" />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700">Mô tả</label>
-                <textarea rows="3" value={categoryForm.description} onChange={e => setCategoryForm({...categoryForm, description: e.target.value})} className="w-full border rounded-xl px-4 py-3 outline-none focus:border-sky-500" placeholder="Mô tả danh mục..." />
               </div>
 
               <div className="space-y-2">

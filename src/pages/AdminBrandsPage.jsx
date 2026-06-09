@@ -53,20 +53,18 @@ function AdminBrandsPage() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Tên Thương hiệu</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Mô tả / Quốc gia</th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Hành động</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td colSpan="3" className="px-6 py-4 text-center text-gray-500">Đang tải dữ liệu...</td></tr>
+                <tr><td colSpan="2" className="px-6 py-4 text-center text-gray-500">Đang tải dữ liệu...</td></tr>
               ) : brands.length === 0 ? (
-                <tr><td colSpan="3" className="px-6 py-4 text-center text-gray-500">Chưa có thương hiệu nào.</td></tr>
+                <tr><td colSpan="2" className="px-6 py-4 text-center text-gray-500">Chưa có thương hiệu nào.</td></tr>
               ) : (
                 brands.map((brand) => (
                   <tr key={brand.id || brand.name} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{brand.name || brand.brandName}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{brand.description || brand.country || 'N/A'}</td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex gap-2">
                         <button className="text-blue-600 hover:text-blue-700 transition" title="Chỉnh sửa">
