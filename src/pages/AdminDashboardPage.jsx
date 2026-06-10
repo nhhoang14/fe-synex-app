@@ -59,10 +59,10 @@ function AdminDashboardPage() {
       {/* Metrics Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Tổng Doanh Thu', value: `${metrics.revenue.toLocaleString('vi-VN')} ₫`, change: 'Dữ liệu thực', icon: 'trending_up' },
-          { label: 'Đơn Hàng Tổng', value: metrics.ordersCount, change: 'Dữ liệu thực', icon: 'shopping_cart' },
-          { label: 'Tổng Khách Hàng', value: metrics.usersCount, change: 'Dữ liệu thực', icon: 'person_add' },
-          { label: 'Tỷ Lệ Hoàn Trả', value: '0%', change: 'Chưa có dữ liệu', icon: 'trending_up' },
+          { label: 'Tổng Doanh Thu', value: `${metrics.revenue.toLocaleString('vi-VN')} ₫`, icon: 'trending_up' },
+          { label: 'Đơn Hàng Tổng', value: metrics.ordersCount, icon: 'shopping_cart' },
+          { label: 'Tổng Khách Hàng', value: metrics.usersCount, icon: 'person_add' },
+          { label: 'Tỷ Lệ Hoàn Trả', value: '0%', icon: 'trending_up' },
         ].map((metric) => (
           <div
             key={metric.label}

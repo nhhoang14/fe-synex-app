@@ -1,4 +1,5 @@
-import { Navigate } from 'react-router-dom'
+// Thêm Outlet vào import từ react-router-dom
+import { Navigate, Outlet } from 'react-router-dom'
 import { ROUTES } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -21,7 +22,7 @@ function ProtectedRoute({ children, allowedRoles }) {
     return <Navigate to={ROUTES.ACCOUNT} replace />
   }
 
-  return children
+  return children ? children : <Outlet />
 }
 
 export default ProtectedRoute

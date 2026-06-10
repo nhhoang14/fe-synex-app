@@ -568,7 +568,7 @@ function AccountPage() {
                 className="space-y-4 rounded-[28px] border border-border bg-white p-6 shadow-sm"
                 onSubmit={handleUpdateProfile}
               >
-                <h2 className="text-2xl font-bold text-ink">Thông cải cá nhân</h2>
+                <h2 className="text-2xl font-bold text-ink">Thông tin cá nhân</h2>
                 <p className="text-slate-700">Cập nhật thông tin liên hệ để giao hàng và hỗ trợ nhanh hơn.</p>
 
                 <div className="grid gap-4 md:grid-cols-2 mt-4">
