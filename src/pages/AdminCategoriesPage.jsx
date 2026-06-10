@@ -54,8 +54,18 @@ function AdminCategoriesPage() {
     setCategoryForm({ 
       name: category.name || category.categoryName || ''
     })
-    // Nạp lại ảnh cũ (nếu có) để xem trước
-    setImagePreview(category.imageUrl || category.image || null)
+    
+    // Bắt bao quát mọi tên trường dữ liệu Backend có thể trả về & Xử lý đường dẫn
+    const imgPath = category.imageUrl || category.image || category.imagePath || category.thumbnail || null;
+    let previewUrl = imgPath;
+    if (imgPath && typeof imgPath === 'string' && !imgPath.startsWith('http') && !imgPath.startsWith('blob:')) {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      let cleanPath = imgPath.startsWith('/') ? imgPath.slice(1) : imgPath;
+      if (!cleanPath.startsWith('uploads/')) cleanPath = `uploads/${cleanPath}`;
+      previewUrl = `${API_URL}/${cleanPath}`;
+    }
+    
+    setImagePreview(previewUrl)
     setImageFile(null) // Reset file up mới
     setIsModalOpen(true)
   }
@@ -79,9 +89,35 @@ function AdminCategoriesPage() {
       const formData = new FormData()
       formData.append('name', categoryForm.name)
       
-      // FIX: Đẩy file vật lý lên với key 'imageFile' khớp với CategoryRequest.java
       if (imageFile) {
         formData.append('imageFile', imageFile)
+        
+        // FIX LỖI SPRING BOOT RỚT ẢNH TRÊN PUT: Up ảnh lấy link nhét thêm vào form
+        if (editingId) {
+          try {
+            const uploadData = new FormData()
+            uploadData.append('file', imageFile)
+            const uploadRes = await fetch(`${API_URL}/api/uploads/images`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+              body: uploadData
+            })
+            if (uploadRes.ok) {
+              const text = await uploadRes.text()
+              try {
+                const json = JSON.parse(text)
+                const finalUrl = json.url || json.imageUrl || json.image || text;
+                formData.append('imageUrl', finalUrl)
+                formData.append('image', finalUrl)
+              } catch (err) {
+                formData.append('imageUrl', text)
+                formData.append('image', text)
+              }
+            }
+          } catch (err) {
+            console.log("Fallback upload failed", err)
+          }
+        }
       }
       
       if (editingId) {
@@ -91,7 +127,6 @@ function AdminCategoriesPage() {
       const response = await fetch(url, {
         method: method,
         headers: {
-          // Không set Content-Type để trình duyệt tự build multipart/form-data
           Authorization: `Bearer ${token}`
         },
         body: formData
@@ -143,33 +178,63 @@ function AdminCategoriesPage() {
         ) : categories.length === 0 ? (
           <p className="text-gray-500">Chưa có danh mục nào.</p>
         ) : (
-          categories.map((category) => (
-            <div
-              key={category.id || category.name}
-              className="rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition overflow-hidden flex flex-col"
-            >
-              <div className="h-40 bg-slate-100 relative">
-                {category.imageUrl || category.image ? (
-                  <img src={category.imageUrl || category.image} alt={category.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-slate-400">
+          categories.map((category) => {
+            // FIX HIỂN THỊ ẢNH VÀ XỬ LÝ TIỀN TỐ /uploads/
+            const imagePath = category.imageUrl || category.image || category.imagePath || category.thumbnail;
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            
+            let fullImageUrl = null;
+            if (imagePath && typeof imagePath === 'string' && imagePath !== 'null') {
+              if (imagePath.startsWith('http')) {
+                fullImageUrl = imagePath;
+              } else {
+                let cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+                if (!cleanPath.startsWith('uploads/')) {
+                  cleanPath = `uploads/${cleanPath}`;
+                }
+                fullImageUrl = `${API_URL}/${cleanPath}`;
+              }
+            }
+
+            return (
+              <div
+                key={category.id || category.name}
+                className="rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition overflow-hidden flex flex-col"
+              >
+                <div className="h-40 bg-slate-100 relative group overflow-hidden">
+                  {fullImageUrl && (
+                    <img 
+                      src={fullImageUrl} 
+                      alt={category.name} 
+                      className="w-full h-full object-cover transition duration-300 group-hover:scale-105" 
+                      onError={(e) => {
+                        // Nếu ảnh bị lỗi 404 từ server, ẩn ảnh và hiện icon dự phòng
+                        e.target.style.display = 'none';
+                        e.target.nextElementSibling.style.display = 'flex';
+                      }}
+                    />
+                  )}
+                  <div 
+                    className="absolute inset-0 items-center justify-center text-slate-400 bg-slate-100"
+                    style={{ display: fullImageUrl ? 'none' : 'flex' }}
+                  >
                     <span className="material-symbols-outlined text-4xl">image</span>
                   </div>
-                )}
-              </div>
-              <div className="p-5 flex-1 flex flex-col">
-                <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{category.name || category.categoryName}</h3>
-                <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2 justify-end">
-                  <button onClick={() => handleOpenEdit(category)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition" title="Chỉnh sửa">
-                    <span className="material-symbols-outlined text-[20px]">edit</span>
-                  </button>
-                  <button onClick={() => handleDelete(category.id)} className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition" title="Xóa">
-                    <span className="material-symbols-outlined text-[20px]">delete</span>
-                  </button>
+                </div>
+                <div className="p-5 flex-1 flex flex-col">
+                  <h3 className="font-bold text-lg text-gray-900 line-clamp-1">{category.name || category.categoryName}</h3>
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2 justify-end">
+                    <button onClick={() => handleOpenEdit(category)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition" title="Chỉnh sửa">
+                      <span className="material-symbols-outlined text-[20px]">edit</span>
+                    </button>
+                    <button onClick={() => handleDelete(category.id)} className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition" title="Xóa">
+                      <span className="material-symbols-outlined text-[20px]">delete</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
 
@@ -187,7 +252,6 @@ function AdminCategoriesPage() {
                 <input required value={categoryForm.name} onChange={e => setCategoryForm({...categoryForm, name: e.target.value})} className="w-full border rounded-xl px-4 py-3 outline-none focus:border-sky-500" placeholder="VD: Ốp lưng" />
               </div>
 
-              {/* KHU VỰC UPLOAD ẢNH VẬT LÝ */}
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700">Hình ảnh danh mục</label>
                 <label className="block border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100 cursor-pointer transition relative overflow-hidden h-48">

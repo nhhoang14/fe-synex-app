@@ -26,54 +26,35 @@ import WishlistPage from './pages/WishlistPage'
 import AdminLayout from './layouts/AdminLayout'
 import AuthLayout from './layouts/AuthLayout'
 import StorefrontLayout from './layouts/StorefrontLayout'
+
+// Thêm dòng Import chính xác vị trí của trang Quên mật khẩu
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import { ROUTES } from './constants'
 
-function App() {
+export default function App() {
   return (
     <Routes>
+      {/* Storefront Layout */}
       <Route element={<StorefrontLayout />}>
+        <Route index element={<HomePage />} />
         <Route path={ROUTES.HOME} element={<HomePage />} />
         <Route path={ROUTES.PRODUCTS} element={<ProductsPage />} />
         <Route path={ROUTES.PRODUCT_DETAIL} element={<ProductDetailPage />} />
         <Route path={ROUTES.CONTACT} element={<ContactPage />} />
-        <Route path={ROUTES.CART} element={<CartPage />} />
-        <Route
-          path={ROUTES.ORDERS}
-          element={
-            <ProtectedRoute>
-              <OrdersPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.CHECKOUT}
-          element={
-            <ProtectedRoute>
-              <CheckoutPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.ACCOUNT}
-          element={
-            <ProtectedRoute>
-              <AccountPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.WISHLIST}
-          element={
-            <ProtectedRoute>
-              <WishlistPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<NotFoundPage />} />
+        
+        {/* Protected Customer Routes */}
+        <Route element={<ProtectedRoute />}>
+          <Route path={ROUTES.ACCOUNT} element={<AccountPage />} />
+          <Route path={ROUTES.CART} element={<CartPage />} />
+          <Route path={ROUTES.CHECKOUT} element={<CheckoutPage />} />
+          <Route path={ROUTES.ORDERS} element={<OrdersPage />} />
+          <Route path={ROUTES.WISHLIST} element={<WishlistPage />} />
+        </Route>
       </Route>
 
+      {/* Admin Layout */}
       <Route
-        path={ROUTES.ADMIN}
+        path="/admin"
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
             <AdminLayout />
@@ -81,32 +62,30 @@ function App() {
         }
       >
         <Route index element={<Navigate to="dashboard" replace />} />
-        {/* Overview */}
         <Route path="dashboard" element={<AdminDashboardPage />} />
-        {/* Sales Management */}
         <Route path="orders" element={<AdminOrdersPage />} />
         <Route path="customers" element={<AdminCustomersPage />} />
-        {/* Catalog & Inventory */}
         <Route path="categories" element={<AdminCategoriesPage />} />
         <Route path="brands" element={<AdminBrandsPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="inventory" element={<AdminInventoryPage />} />
-        {/* Engagement */}
         <Route path="reviews" element={<AdminReviewsPage />} />
         <Route path="promotions" element={<AdminPromotionsPage />} />
-        {/* System & Reports */}
         <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
       </Route>
 
+      {/* Auth Layout - Nơi đồng bộ chuyển trang con */}
       <Route element={<AuthLayout />}>
         <Route path={ROUTES.LOGIN} element={<LoginPage />} />
         <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+        
+        {/* Khai báo Route Quên mật khẩu bằng chuỗi cứng để không sợ lỗi undefined hỏng trang */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
+      {/* Fallback route */}
       <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
     </Routes>
   )
 }
-
-export default App

@@ -11,7 +11,6 @@ function LoginPage() {
   const navigate = useNavigate()
   const { login } = useAuth()
   
-  // ĐÃ SỬA: Đổi state email thành identifier để khớp với backend
   const [form, setForm] = useState({ identifier: '', password: '' })
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -27,7 +26,6 @@ function LoginPage() {
     setIsSubmitting(true)
 
     try {
-      // ĐÃ SỬA: Gửi identifier lên context/api thay vì email
       const loginResponse = await login({
         identifier: form.identifier.trim(),
         password: form.password,
@@ -37,8 +35,8 @@ function LoginPage() {
 
       navigate(
         normalizedRole === USER_ROLES.ADMIN
-          ? ROUTES.ADMIN
-          : ROUTES.HOME || '/'
+          ? ROUTES.ADMIN_DASHBOARD
+          : ROUTES.HOME
       )
     } catch (requestError) {
       setError(requestError.message || 'Đăng nhập thất bại')
@@ -54,7 +52,6 @@ function LoginPage() {
     >
       <h1 className="text-4xl font-bold tracking-tight text-ink">Đăng nhập</h1>
 
-      {/* ĐÃ SỬA: Thay đổi name, type và label cho phù hợp với identifier */}
       <FormField
         label="Tên đăng nhập hoặc Email"
         name="identifier"
@@ -73,6 +70,16 @@ function LoginPage() {
         required
       />
 
+      {/* Vị trí nút Quên mật khẩu căn phải chuẩn UI */}
+      <div className="flex justify-end">
+        <Link
+          to="/forgot-password"
+          className="text-sm font-semibold text-sky-700 hover:underline"
+        >
+          Quên mật khẩu?
+        </Link>
+      </div>
+
       <button
         type="submit"
         disabled={isSubmitting}
@@ -83,7 +90,7 @@ function LoginPage() {
 
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
 
-      <p className="text-sm text-slate-600">
+      <p className="text-center text-sm text-slate-600">
         Chưa có tài khoản?{' '}
         <Link className="font-semibold text-sky-700 hover:underline" to={ROUTES.REGISTER}>
           Đăng ký ngay

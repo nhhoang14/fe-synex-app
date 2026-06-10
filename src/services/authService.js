@@ -28,6 +28,22 @@ export function refreshToken(token) {
   })
 }
 
+// Bổ sung API Quên mật khẩu
+export function forgotPassword(payload) {
+  return apiRequest('/api/auth/forgot-password', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+// Bổ sung API Đổi mật khẩu mới
+export function resetPassword(payload) {
+  return apiRequest('/api/auth/reset-password', {
+    method: 'POST',
+    body: payload,
+  })
+}
+
 export function extractToken(payload) {
   if (!payload || typeof payload !== 'object') {
     return ''
