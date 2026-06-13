@@ -313,17 +313,18 @@ function AdminProductsPage() {
       if (event && event.target) event.target.value = null;
     }
   };
+
   async function handleSaveProduct(e) {
     e.preventDefault();
     
     try {
-      // FIX: Bắt buộc dùng FormData và gửi dạng mảng index chuẩn Spring Boot (VD: variants[0].sku)
       const formData = new FormData();
       
       formData.append('name', basicInfo.name);
       formData.append('description', basicInfo.description);
       if (basicInfo.category) formData.append('categoryId', Number(basicInfo.category));
       if (basicInfo.brand) formData.append('brandId', Number(basicInfo.brand));
+      formData.append('active', true);
 
       // Khớp chính xác tên 'productImages' trong ProductRequest.java
       if (imageFile) {
@@ -333,14 +334,31 @@ function AdminProductsPage() {
       let activeIndex = 0;
       generatedVariants.forEach((v) => {
         if (v.active !== false) {
+          // Bổ sung truyền id của variant để backend Update đúng bản ghi khi sửa
+          if (v.id) formData.append(`variants[${activeIndex}].id`, v.id);
+
           // Khớp chính xác các tên biến trong ProductVariantRequest.java
           formData.append(`variants[${activeIndex}].sku`, (v.sku || `MS-${Date.now().toString().slice(-4)}-${activeIndex}`).trim());
           formData.append(`variants[${activeIndex}].price`, Number(v.price) || 0);
-          formData.append(`variants[${activeIndex}].stock`, Number(v.stock) || 0); // Sửa 'stockQuantity' thành 'stock'
+          formData.append(`variants[${activeIndex}].stock`, Number(v.stock) || 0); 
           
           if (v.rawFile) {
-            formData.append(`variants[${activeIndex}].variantImage`, v.rawFile); // File ảnh riêng của biến thể
+            formData.append(`variants[${activeIndex}].variantImage`, v.rawFile); 
           }
+
+          // [PHẦN SỬA LỖI CHÍNH]: Đẩy mảng attributes lên Backend chuẩn cấu trúc DTO
+          if (v.attributes && typeof v.attributes === 'object') {
+            let attrIndex = 0;
+            Object.entries(v.attributes).forEach(([attrName, attrValue]) => {
+              if (attrName && attrValue) {
+                // Ánh xạ vào danh sách VariantAttributeRequest trong ProductVariantRequest
+                formData.append(`variants[${activeIndex}].attributes[${attrIndex}].attributeName`, attrName.trim());
+                formData.append(`variants[${activeIndex}].attributes[${attrIndex}].attributeValue`, attrValue.trim());
+                attrIndex++;
+              }
+            });
+          }
+
           activeIndex++;
         }
       });
@@ -354,7 +372,7 @@ function AdminProductsPage() {
         method: editingProductId ? 'PUT' : 'POST',
         headers: {
           Authorization: `Bearer ${token}`
-          // Trình duyệt tự sinh boundary cho multipart/form-data
+          // Trình duyệt tự sinh boundary cho multipart/form-data nên KHÔNG truyền Content-Type
         },
         body: formData
       });

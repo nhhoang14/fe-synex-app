@@ -455,13 +455,12 @@ function ProductsPage() {
                   </Link>
 
                   <div className="px-5 pb-5 mt-auto">
-                    <button
-                      type="button"
-                      onClick={() => handleAddToCart(product)}
-                      className="w-full rounded-full bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800"
+                    <Link
+                      to={productLink}
+                      className="flex w-full items-center justify-center rounded-full bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800"
                     >
-                      Thêm vào giỏ
-                    </button>
+                      Xem chi tiết
+                    </Link>
                   </div>
                 </article>
               )
