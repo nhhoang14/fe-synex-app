@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import FaqSection from '../components/FaqSection'
 import ProductCard from '../components/ProductCard'
@@ -23,30 +23,56 @@ function HomePage() {
   const [feedback, setFeedback] = useState('')
   const [progress, setProgress] = useState(100)
 
-  // Thay đoạn hiện tại bằng đoạn này:
-useEffect(() => {
-  let active = true;
-  async function loadData() {
-    try {
-      // Sử dụng catalogService để gọi API, khớp với logic trả về List<T> (mảng JSON) từ Backend
-      const [prodData, catData] = await Promise.all([
-        getProducts(),
-        getCategories()
-      ]);
-      
-      if (active) {
-        setProducts(Array.isArray(prodData) ? prodData : []);
-        setCategories(Array.isArray(catData) ? catData : []);
-      }
-    } catch (error) {
-      console.error('Lỗi tải dữ liệu:', error);
-    } finally {
-      if (active) setLoading(false);
-    }
+  function toObjectArray(data) {
+    return Array.isArray(data) ? data.filter((item) => item && typeof item === 'object') : []
   }
-  loadData();
-  return () => { active = false };
-}, []);
+
+  function getProductSold(product) {
+    if (typeof product?.soldQuantity === 'number') return product.soldQuantity
+    if (typeof product?.sold === 'number') return product.sold
+
+    return toObjectArray(product?.variants).reduce(
+      (total, variant) => total + Number(variant?.soldQuantity || variant?.sold || 0),
+      0,
+    )
+  }
+
+  useEffect(() => {
+    let active = true
+
+    async function loadData() {
+      setLoading(true)
+
+      const [productResult, categoryResult] = await Promise.allSettled([
+        getProducts(),
+        getCategories(),
+      ])
+
+      if (!active) return
+
+      if (productResult.status === 'fulfilled') {
+        setProducts(toObjectArray(productResult.value).filter((product) => product?.active !== false))
+      } else {
+        console.error('Lỗi tải sản phẩm:', productResult.reason)
+        setProducts([])
+      }
+
+      if (categoryResult.status === 'fulfilled') {
+        setCategories(toObjectArray(categoryResult.value))
+      } else {
+        console.error('Lỗi tải danh mục:', categoryResult.reason)
+        setCategories([])
+      }
+
+      setLoading(false)
+    }
+
+    loadData()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   // Tự động ẩn thông báo sau 3 giây và chạy thanh progress
   useEffect(() => {
@@ -74,9 +100,16 @@ useEffect(() => {
     return category1; // Ảnh mặc định nếu không có dữ liệu
   };
 
-  const categoryList = categories.slice(0, 10); // Hiển thị tối đa 10 danh mục ở slider
+  const categoryList = categories.slice(0, 10)
   const visibleCategories = 4
   const maxCategoryStart = Math.max(0, categoryList.length - visibleCategories)
+  const shouldShowCategoryControls = categoryList.length > visibleCategories
+
+  const featuredProducts = useMemo(() => {
+    return [...products]
+      .sort((a, b) => getProductSold(b) - getProductSold(a))
+      .slice(0, 10)
+  }, [products])
 
   const handlePrevCategory = () => {
     setCategoryStart((prev) => Math.max(prev - 1, 0))
@@ -145,35 +178,42 @@ useEffect(() => {
               Danh mục sản phẩm
             </h2>
 
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handlePrevCategory}
-                disabled={categoryStart === 0}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-xl text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                ←
-              </button>
+            {shouldShowCategoryControls && (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handlePrevCategory}
+                  disabled={categoryStart === 0}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-xl text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ←
+                </button>
 
-              <button
-                type="button"
-                onClick={handleNextCategory}
-                disabled={categoryStart >= maxCategoryStart}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-xl text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                →
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={handleNextCategory}
+                  disabled={categoryStart >= maxCategoryStart}
+                  className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white text-xl text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  →
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="overflow-hidden">
-            <div
-              className="flex transition-transform duration-500 ease-in-out"
-              style={{
-                transform: `translateX(-${categoryStart * 25}%)`,
-              }}
-            >
-              {categoryList.map((category) => {
+            {loading && categoryList.length === 0 ? (
+              <p className="py-10 text-center text-slate-500">Đang tải danh mục...</p>
+            ) : categoryList.length === 0 ? (
+              <p className="py-10 text-center text-slate-500">Chưa có danh mục sản phẩm.</p>
+            ) : (
+              <div
+                className="flex transition-transform duration-500 ease-in-out"
+                style={{
+                  transform: `translateX(-${categoryStart * 25}%)`,
+                }}
+              >
+                {categoryList.map((category) => {
                 const categoryName = category.name || category.categoryName || 'Danh mục'
                 const normalizedName = normalizeCategory(categoryName)
                 const imageUrl = getCategoryImage(category)
@@ -209,22 +249,25 @@ useEffect(() => {
                     </Link>
                   </div>
                 )
-              })}
-            </div>
+                })}
+              </div>
+            )}
           </div>
 
-          <div className="mt-6 flex items-center justify-center gap-2">
-            {Array.from({ length: maxCategoryStart + 1 }).map((_, index) => (
-              <button
-                key={index}
-                type="button"
-                onClick={() => setCategoryStart(index)}
-                className={`h-2.5 rounded-full transition ${
-                  categoryStart === index ? 'w-8 bg-slate-800' : 'w-2.5 bg-slate-300'
-                }`}
-              />
-            ))}
-          </div>
+          {shouldShowCategoryControls && (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              {Array.from({ length: maxCategoryStart + 1 }).map((_, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => setCategoryStart(index)}
+                  className={`h-2.5 rounded-full transition ${
+                    categoryStart === index ? 'w-8 bg-slate-800' : 'w-2.5 bg-slate-300'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -234,9 +277,9 @@ useEffect(() => {
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {loading ? (
             <p className="col-span-full py-10 text-center text-slate-500">Đang tải sản phẩm...</p>
-          ) : products.length === 0 ? (
+          ) : featuredProducts.length === 0 ? (
             <p className="col-span-full py-10 text-center text-slate-500">Chưa có sản phẩm nổi bật.</p>
-          ) : products.slice(0, 10).map((product) => (
+          ) : featuredProducts.map((product) => (
             <ProductCard
               key={product.id || product.productId}
               product={product}

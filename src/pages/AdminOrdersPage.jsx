@@ -328,36 +328,47 @@ function AdminOrdersPage() {
                 </div>
 
                 {(() => {
-                  // Logic móc địa chỉ đúng như AccountPage.jsx
+                  // Backend OrderResponse trả địa chỉ dạng string ở field shippingAddress.
+                  // Giữ thêm các fallback để vẫn chạy được nếu sau này API trả object.
                   let recName = 'Chưa cập nhật tên';
                   let recPhone = 'Chưa cập nhật SĐT';
                   let recAddress = 'Chưa cập nhật địa chỉ';
 
-                  if (displayOrder.shippingAddress && typeof displayOrder.shippingAddress === 'object') {
-                    const sa = displayOrder.shippingAddress;
-                    recName = sa.fullName || sa.full_name || sa.name || recName;
-                    recPhone = sa.phone || sa.phoneNumber || recPhone;
-                    const parts = [sa.street || sa.addressLine, sa.ward, sa.province || sa.city].filter(Boolean);
-                    if (parts.length > 0) {
-                      recAddress = parts.join(', ');
-                    } else if (sa.address) {
-                      recAddress = sa.address;
-                    }
-                  } 
-                  else if (displayOrder.shippingFullName || displayOrder.fullName || displayOrder.receiverName) {
-                    recName = displayOrder.shippingFullName || displayOrder.fullName || displayOrder.receiverName || recName;
-                    recPhone = displayOrder.shippingPhone || displayOrder.phone || displayOrder.phoneNumber || recPhone;
-                    
+                  const shippingAddressValue = displayOrder.shippingAddress;
+
+                  if (shippingAddressValue && typeof shippingAddressValue === 'object') {
+                    const sa = shippingAddressValue;
+                    recName = sa.fullName || sa.full_name || sa.name || displayOrder.shippingFullName || recName;
+                    recPhone = sa.phone || sa.phoneNumber || displayOrder.shippingPhone || recPhone;
+
                     const parts = [
-                      displayOrder.shippingStreet || displayOrder.street, 
-                      displayOrder.shippingWard || displayOrder.ward, 
+                      sa.houseNumber || sa.addressLine || sa.street || sa.address,
+                      sa.ward || sa.wardName,
+                      sa.district || sa.districtName,
+                      sa.province || sa.city || sa.cityName
+                    ].filter(Boolean);
+
+                    if (parts.length > 0) recAddress = parts.join(', ');
+                  } else {
+                    recName = displayOrder.shippingFullName || displayOrder.fullName || displayOrder.receiverName || displayOrder.user?.fullName || recName;
+                    recPhone = displayOrder.shippingPhone || displayOrder.phone || displayOrder.phoneNumber || displayOrder.user?.phone || recPhone;
+
+                    const parts = [
+                      displayOrder.shippingStreet || displayOrder.street,
+                      displayOrder.shippingWard || displayOrder.ward,
+                      displayOrder.shippingDistrict || displayOrder.district,
                       displayOrder.shippingProvince || displayOrder.province || displayOrder.city
                     ].filter(Boolean);
-                    
+
                     if (parts.length > 0) {
                       recAddress = parts.join(', ');
-                    } else if (displayOrder.address || displayOrder.shippingAddressStr) {
-                      recAddress = displayOrder.address || displayOrder.shippingAddressStr;
+                    } else {
+                      recAddress =
+                        (typeof shippingAddressValue === 'string' && shippingAddressValue.trim()) ||
+                        displayOrder.address ||
+                        displayOrder.shippingAddressStr ||
+                        displayOrder.fullAddress ||
+                        recAddress;
                     }
                   }
 
@@ -395,12 +406,37 @@ function AdminOrdersPage() {
                     
                     return orderItemsList.length > 0 ? (
                       orderItemsList.map((item, idx) => {
-                        const productName = item.productName || item.product?.name || item.name || 'Sản phẩm phụ kiện';
-                        const productPrice = item.price || item.product?.price || 0;
-                        const productImage = item.product?.image || item.product?.imageUrl || item.image;
+                        // Backend trả item.variant.productName và item.variant.imageUrl,
+                        // không phải item.productName ở cấp ngoài.
+                        const variant = item.variant || item.productVariant || {};
+                        const product = item.product || variant.product || {};
+
+                        const productName =
+                          item.productName ||
+                          product.name ||
+                          variant.productName ||
+                          variant.name ||
+                          item.name ||
+                          'Sản phẩm phụ kiện';
+
+                        const productPrice = Number(
+                          item.price ??
+                          variant.price ??
+                          product.price ??
+                          0
+                        );
+
+                        const productImage =
+                          item.imageUrl ||
+                          item.image ||
+                          variant.imageUrl ||
+                          variant.image ||
+                          product.imageUrl ||
+                          product.image ||
+                          product.thumbnail;
 
                         return (
-                          <div key={item.id || idx} className="flex items-center justify-between p-4 bg-white hover:bg-slate-50/50">
+                          <div key={item.id || item.variant?.id || idx} className="flex items-center justify-between p-4 bg-white hover:bg-slate-50/50">
                             <div className="flex items-center gap-3">
                               {productImage ? (
                                 <img 

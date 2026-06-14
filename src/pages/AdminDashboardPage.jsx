@@ -2,6 +2,46 @@ import { useEffect, useState, useMemo } from 'react'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { useAuth } from '../contexts/AuthContext'
 
+const isCancelledOrder = order => String(order?.status || '').toUpperCase() === 'CANCELLED'
+
+const getOrderItems = order => {
+  if (Array.isArray(order?.items)) return order.items
+  if (Array.isArray(order?.orderItems)) return order.orderItems
+  if (Array.isArray(order?.orderDetails)) return order.orderDetails
+  return []
+}
+
+const getItemProductName = item => {
+  const variant = item?.variant || item?.productVariant || item?.product_variant || {}
+  const product = item?.product || variant?.product || {}
+
+  return (
+    item?.productName ||
+    item?.name ||
+    product?.name ||
+    variant?.productName ||
+    variant?.name ||
+    item?.variantName ||
+    variant?.sku ||
+    `Sản phẩm #${variant?.productId || variant?.id || item?.productId || item?.id || 'không tên'}`
+  )
+}
+
+const getItemGroupKey = item => {
+  const variant = item?.variant || item?.productVariant || item?.product_variant || {}
+  const product = item?.product || variant?.product || {}
+  return product?.id || variant?.productId || item?.productId || getItemProductName(item)
+}
+
+const getItemQuantity = item => Number(item?.quantity || item?.qty || 0)
+
+const getItemSales = item => {
+  const variant = item?.variant || item?.productVariant || {}
+  const qty = getItemQuantity(item)
+  const price = Number(item?.price ?? item?.unitPrice ?? item?.salePrice ?? variant?.price ?? 0)
+  return Number(item?.subtotal ?? item?.totalPrice ?? item?.totalAmount ?? qty * price)
+}
+
 function AdminDashboardPage() {
   usePageTitle('Bảng điều khiển')
 
@@ -15,7 +55,7 @@ function AdminDashboardPage() {
     let active = true
     async function fetchDashboardData() {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+        const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || ''
         const [ordersRes, usersRes] = await Promise.all([
           fetch(`${API_URL}/api/admin/orders`, { headers: { Authorization: `Bearer ${token}` } }),
           fetch(`${API_URL}/api/admin/users`, { headers: { Authorization: `Bearer ${token}` } })
@@ -32,7 +72,7 @@ function AdminDashboardPage() {
 
           // Giữ nguyên logic tính toán KPI Metrics gốc của bạn
           const totalRevenue = validOrders.reduce((sum, order) => {
-            if (order.status !== 'CANCELLED') {
+            if (!isCancelledOrder(order)) {
               return sum + (order.totalAmount || order.totalPrice || 0)
             }
             return sum
@@ -75,7 +115,7 @@ function AdminDashboardPage() {
     }).reverse()
 
     allOrders.forEach(order => {
-      if (order.status === 'CANCELLED') return
+      if (isCancelledOrder(order)) return
       const orderDate = new Date(order.createdAt || order.orderDate)
       const m = orderDate.getMonth() + 1
       const y = orderDate.getFullYear()
@@ -101,30 +141,30 @@ function AdminDashboardPage() {
     const productMap = {}
 
     allOrders.forEach(order => {
-      if (order.status === 'CANCELLED') return
-      const orderDate = new Date(order.createdAt || order.orderDate)
-      
-      if (orderDate.getMonth() + 1 === currentMonth && orderDate.getFullYear() === currentYear) {
-        const items = order.orderItems || order.items || []
-        items.forEach(item => {
-          const pName = item.productName || 
-                        (item.product && item.product.name) || 
-                        (item.variant && item.variant.product && item.variant.product.name) || 
-                        'Sản phẩm không tên'
-          const qty = item.quantity || 0
-          const price = item.price || 0
+      if (isCancelledOrder(order)) return
 
-          if (!productMap[pName]) {
-            productMap[pName] = { name: pName, quantity: 0, totalSales: 0 }
+      const orderDate = new Date(order.createdAt || order.orderDate || order.created_at)
+      if (Number.isNaN(orderDate.getTime())) return
+
+      if (orderDate.getMonth() + 1 === currentMonth && orderDate.getFullYear() === currentYear) {
+        getOrderItems(order).forEach(item => {
+          const name = getItemProductName(item)
+          const key = getItemGroupKey(item)
+          const qty = getItemQuantity(item)
+          const sales = getItemSales(item)
+
+          if (!productMap[key]) {
+            productMap[key] = { name, quantity: 0, totalSales: 0 }
           }
-          productMap[pName].quantity += qty
-          productMap[pName].totalSales += (qty * price)
+
+          productMap[key].quantity += qty
+          productMap[key].totalSales += sales
         })
       }
     })
 
     return Object.values(productMap)
-      .sort((a, b) => b.quantity - a.quantity)
+      .sort((a, b) => b.quantity - a.quantity || b.totalSales - a.totalSales)
       .slice(0, 10)
   }, [allOrders])
 

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { resolveRoleValue } from '../constants'
 import { useAuth } from '../contexts/AuthContext'
-import { useCart } from '../contexts/CartContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import {
   changeMyPassword,
@@ -15,6 +14,7 @@ import {
 import { getMyOrders } from '../services/orderService'
 import {
   formatCurrency,
+  normalizeImageUrl,
   getProductId,
   getProductImage,
   getProductName,
@@ -25,7 +25,6 @@ function AccountPage() {
   usePageTitle('Tài khoản - Synex')
 
   const { token, loadProfile, logout } = useAuth()
-  const { addToCart } = useCart()
   const location = useLocation()
 
   const [activeTab, setActiveTab] = useState('profile')
@@ -190,7 +189,7 @@ function AccountPage() {
     try {
       const data = await getMyAddresses(token)
       setAddresses(Array.isArray(data) ? data : [])
-    } catch (err) {
+    } catch {
       setAddresses([])
     }
   }, [token])
@@ -243,6 +242,121 @@ function AccountPage() {
   }, [selectedOrderId, orders])
 
   const displayOrder = orderDetail || selectedOrder
+
+  function getOrderRecipientInfo(order) {
+    const fallback = {
+      name: 'Chưa cập nhật tên',
+      phone: 'Chưa cập nhật SĐT',
+      address: 'Chưa cập nhật địa chỉ',
+    }
+
+    if (!order) return fallback
+
+    let recName =
+      order.shippingFullName ||
+      order.fullName ||
+      order.receiverName ||
+      order.customerName ||
+      order.user?.fullName ||
+      fallback.name
+
+    let recPhone =
+      order.shippingPhone ||
+      order.phone ||
+      order.phoneNumber ||
+      order.customerPhone ||
+      order.user?.phone ||
+      order.user?.phoneNumber ||
+      fallback.phone
+
+    let recAddress = fallback.address
+    const shippingAddressValue = order.shippingAddress
+
+    if (shippingAddressValue && typeof shippingAddressValue === 'object') {
+      const sa = shippingAddressValue
+      recName = sa.fullName || sa.full_name || sa.name || recName
+      recPhone = sa.phone || sa.phoneNumber || recPhone
+
+      const parts = [
+        sa.address || sa.addressLine || sa.street || sa.houseNumber,
+        sa.ward || sa.wardName,
+        sa.district || sa.districtName,
+        sa.province || sa.city || sa.cityName,
+      ].filter(Boolean)
+
+      if (parts.length > 0) recAddress = parts.join(', ')
+    } else {
+      const parts = [
+        order.shippingStreet || order.street,
+        order.shippingWard || order.ward,
+        order.shippingDistrict || order.district,
+        order.shippingProvince || order.province || order.city,
+      ].filter(Boolean)
+
+      if (parts.length > 0) {
+        recAddress = parts.join(', ')
+      } else if (typeof shippingAddressValue === 'string' && shippingAddressValue.trim()) {
+        recAddress = shippingAddressValue.trim()
+      } else if (order.address || order.shippingAddressStr || order.fullAddress) {
+        recAddress = order.address || order.shippingAddressStr || order.fullAddress
+      }
+    }
+
+    if ((recName === fallback.name || recPhone === fallback.phone || recAddress === fallback.address) && order.shippingAddressId) {
+      const matchAddr = addresses.find(a => a.id === order.shippingAddressId)
+      if (matchAddr) {
+        recName = recName === fallback.name ? (matchAddr.fullName || matchAddr.name || recName) : recName
+        recPhone = recPhone === fallback.phone ? (matchAddr.phone || matchAddr.phoneNumber || recPhone) : recPhone
+        if (recAddress === fallback.address) {
+          recAddress =
+            matchAddr.address ||
+            [matchAddr.addressLine || matchAddr.street, matchAddr.ward, matchAddr.province || matchAddr.city]
+              .filter(Boolean)
+              .join(', ') ||
+            recAddress
+        }
+      }
+    }
+
+    return { name: recName, phone: recPhone, address: recAddress }
+  }
+
+  function getOrderItemDisplay(item) {
+    const variant = item?.variant || item?.productVariant || {}
+    const product = item?.product || variant.product || {}
+
+    const productName =
+      item?.productName ||
+      product.name ||
+      variant.productName ||
+      variant.name ||
+      item?.name ||
+      'Sản phẩm phụ kiện'
+
+    const productPrice = Number(
+      item?.price ??
+      item?.unitPrice ??
+      variant.price ??
+      product.price ??
+      0
+    )
+
+    const rawImage =
+      item?.imageUrl ||
+      item?.image ||
+      variant.imageUrl ||
+      variant.image ||
+      product.imageUrl ||
+      product.image ||
+      product.thumbnail ||
+      ''
+
+    const productImage = rawImage ? normalizeImageUrl(rawImage) : ''
+    const quantity = Number(item?.quantity || item?.qty || 1)
+    const lineTotal = Number(item?.subtotal ?? item?.subTotal ?? productPrice * quantity)
+
+    return { productName, productPrice, productImage, quantity, lineTotal }
+  }
 
   const filteredOrders = useMemo(() => {
     if (orderStatusFilter === 'ALL') return orders;
@@ -309,49 +423,12 @@ function AccountPage() {
       fullName: address.fullName || '',
       // ĐÃ SỬA: Đọc thêm biến address.phone từ Backend trả về
       phoneNumber: address.phone || address.phoneNumber || '',
-      addressLine: address.addressLine || address.street || '',
+      addressLine: address.addressLine || address.street || address.address || '',
       ward: address.ward || '',
       city: address.province || address.city || '', 
       country: address.country || 'Vietnam',
     })
     setIsAddressModalOpen(true)
-  }
-
-  async function handleAddressFormSubmit(event) {
-    event.preventDefault()
-    setMessage('')
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-    
-    const payload = {
-      ...addressForm,
-      street: addressForm.addressLine,
-      district: '', 
-      province: addressForm.city, // FIX: Gửi kèm key province
-      phone: addressForm.phoneNumber
-    }
-
-    try {
-      if (editingAddressId) {
-        const response = await fetch(`${API_URL}/api/users/me/addresses/${editingAddressId}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        })
-        if (!response.ok) throw new Error('Cập nhật địa chỉ thất bại')
-        setMessage('Đã cập nhật thông tin địa chỉ thành công')
-      } else {
-        await createAddress(token, payload)
-        setMessage('Đã thêm địa chỉ giao hàng mới')
-      }
-      
-      await reloadAddresses()
-      setIsAddressModalOpen(false)
-    } catch (error) {
-      setMessage(error.message || 'Thao tác địa chỉ thất bại')
-    }
   }
 
   async function handleSetDefault(addressId) {
@@ -390,12 +467,17 @@ function AccountPage() {
       const activeAddr = addresses.find(a => a.id === editingAddressId);
       const isCurrentlyDefault = activeAddr ? (activeAddr.isDefault || activeAddr.default) : false;
 
+      const fullAddress = [addressForm.addressLine, addressForm.ward, addressForm.city].filter(Boolean).join(', ')
       const payload = {
         ...addressForm,
+        address: fullAddress,
         street: addressForm.addressLine,
-        district: '', 
-        province: addressForm.city, 
+        addressLine: addressForm.addressLine,
+        district: '',
+        province: addressForm.city,
+        city: addressForm.city,
         phone: addressForm.phoneNumber,
+        phoneNumber: addressForm.phoneNumber,
         isDefault: isCurrentlyDefault,
         default: isCurrentlyDefault
       }
@@ -473,19 +555,7 @@ function AccountPage() {
     }
   }
 
-  async function handleAddToCart(product) {
-    const productId = getProductId(product)
-    if (!productId) {
-      setMessage('Không tìm thấy và xác định được mã ID sản phẩm.')
-      return
-    }
-    try {
-      await addToCart(productId, 1)
-      setMessage(`Đã thêm ${getProductName(product)} vào giỏ hàng thành công!`)
-    } catch (error) {
-      setMessage(error.message)
-    }
-  }
+
 
   const NAV_ITEMS = [
     {
@@ -987,7 +1057,7 @@ function AccountPage() {
                       const isAddressDefault = address.isDefault === true || address.default === true;
                       
                       // Hiển thị chuẩn: Chi tiết - Phường/Xã - Tỉnh/Thành
-                      const displayAddress = [address.street || address.addressLine, address.ward, address.province || address.city].filter(Boolean).join(' - ');
+                      const displayAddress = address.address || [address.street || address.addressLine, address.ward, address.province || address.city].filter(Boolean).join(', ');
 
                       return (
                         <article key={address.id} className="relative rounded-2xl border border-border bg-slate-50 p-5">
@@ -1114,49 +1184,7 @@ function AccountPage() {
                 </div>
 
                 {(() => {
-                  let recName = 'Chưa cập nhật tên';
-                  let recPhone = 'Chưa cập nhật SĐT';
-                  let recAddress = 'Chưa cập nhật địa chỉ';
-
-                  if (displayOrder.shippingAddress) {
-                    const sa = displayOrder.shippingAddress;
-                    recName = sa.fullName || sa.full_name || sa.name || recName;
-                    recPhone = sa.phone || sa.phoneNumber || recPhone;
-                    const parts = [sa.street || sa.addressLine, sa.ward, sa.province || sa.city].filter(Boolean);
-                    if (parts.length > 0) {
-                      recAddress = parts.join(', ');
-                    } else if (sa.address) {
-                      recAddress = sa.address;
-                    }
-                  } 
-                  // SỬA TẠI ĐÂY: Khớp chính xác với tên biến API trả về (shippingFullName, shippingPhone, shippingStreet...)
-                  else if (displayOrder.shippingFullName || displayOrder.fullName || displayOrder.receiverName) {
-                    recName = displayOrder.shippingFullName || displayOrder.fullName || displayOrder.receiverName || recName;
-                    recPhone = displayOrder.shippingPhone || displayOrder.phone || displayOrder.phoneNumber || recPhone;
-                    
-                    const parts = [
-                      displayOrder.shippingStreet || displayOrder.street, 
-                      displayOrder.shippingWard || displayOrder.ward, 
-                      displayOrder.shippingProvince || displayOrder.province || displayOrder.city
-                    ].filter(Boolean);
-                    
-                    if (parts.length > 0) {
-                      recAddress = parts.join(', ');
-                    } else if (displayOrder.address || displayOrder.shippingAddressStr) {
-                      recAddress = displayOrder.address || displayOrder.shippingAddressStr;
-                    }
-                  }
-                  else if (displayOrder.shippingAddressId) {
-                    const matchAddr = addresses.find(a => a.id === displayOrder.shippingAddressId);
-                    if (matchAddr) {
-                      recName = matchAddr.fullName || matchAddr.full_name || matchAddr.name || recName;
-                      recPhone = matchAddr.phone || matchAddr.phoneNumber || recPhone;
-                      const parts = [matchAddr.street || matchAddr.addressLine, matchAddr.ward, matchAddr.province || matchAddr.city].filter(Boolean);
-                      if (parts.length > 0) {
-                        recAddress = parts.join(', ');
-                      }
-                    }
-                  }
+                  const recipientInfo = getOrderRecipientInfo(displayOrder)
 
                   return (
                     <div className="rounded-2xl border border-border bg-slate-50 p-4 sm:col-span-2">
@@ -1166,15 +1194,15 @@ function AccountPage() {
                       <div className="space-y-2 text-sm text-ink">
                         <div className="flex items-center gap-2">
                           <span className="material-symbols-outlined text-slate-400 text-[18px]">person</span>
-                          <span className="font-medium">{recName}</span>
+                          <span className="font-medium">{recipientInfo.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="material-symbols-outlined text-slate-400 text-[18px]">call</span>
-                          <span className="text-slate-600">{recPhone}</span>
+                          <span className="text-slate-600">{recipientInfo.phone}</span>
                         </div>
                         <div className="flex items-start gap-2">
                           <span className="material-symbols-outlined text-slate-400 text-[18px] mt-0.5">location_on</span>
-                          <span className="text-slate-600 leading-relaxed">{recAddress}</span>
+                          <span className="text-slate-600 leading-relaxed">{recipientInfo.address}</span>
                         </div>
                       </div>
                     </div>
@@ -1192,12 +1220,16 @@ function AccountPage() {
                     
                     return orderItemsList.length > 0 ? (
                       orderItemsList.map((item, idx) => {
-                        const productName = item.productName || item.product?.name || item.name || 'Sản phẩm phụ kiện';
-                        const productPrice = item.price || item.product?.price || 0;
-                        const productImage = item.product?.image || item.product?.imageUrl || item.image;
+                        const {
+                          productName,
+                          productPrice,
+                          productImage,
+                          quantity,
+                          lineTotal,
+                        } = getOrderItemDisplay(item)
 
                         return (
-                          <div key={item.id || idx} className="flex items-center justify-between p-4 bg-white hover:bg-slate-50/50">
+                          <div key={item.id || item.variant?.id || item.productVariant?.id || idx} className="flex items-center justify-between p-4 bg-white hover:bg-slate-50/50">
                             <div className="flex items-center gap-3">
                               {productImage ? (
                                 <img 
@@ -1217,12 +1249,12 @@ function AccountPage() {
                                   {productName}
                                 </p>
                                 <p className="text-xs text-slate-500 mt-0.5">
-                                  Số lượng: {item.quantity || 1} × {productPrice.toLocaleString('vi-VN')} đ
+                                  Số lượng: {quantity} × {productPrice.toLocaleString('vi-VN')} đ
                                 </p>
                               </div>
                             </div>
                             <span className="font-semibold text-ink text-sm whitespace-nowrap">
-                              {(productPrice * (item.quantity || 1)).toLocaleString('vi-VN')} đ
+                              {lineTotal.toLocaleString('vi-VN')} đ
                             </span>
                           </div>
                         );

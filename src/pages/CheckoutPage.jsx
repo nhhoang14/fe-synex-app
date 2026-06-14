@@ -16,6 +16,48 @@ import {
   getProductId,
 } from '../utils/normalizers'
 
+const pickAddressValue = (...values) => {
+  const value = values.find((item) => typeof item === 'string' && item.trim())
+  return value ? value.trim() : ''
+}
+
+const splitSavedAddress = (addressText = '') => {
+  const parts = String(addressText || '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (parts.length === 0) return { addressLine: '', ward: '', city: '' }
+  if (parts.length === 1) return { addressLine: parts[0], ward: '', city: '' }
+  if (parts.length === 2) return { addressLine: parts[0], ward: '', city: parts[1] }
+
+  return {
+    addressLine: parts.slice(0, -2).join(', '),
+    ward: parts[parts.length - 2],
+    city: parts[parts.length - 1],
+  }
+}
+
+const buildAddressText = ({ addressLine, ward, city }) => {
+  return [addressLine, ward, city]
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+    .join(', ')
+}
+
+const formatAddressText = (address = {}) => {
+  const savedAddress = pickAddressValue(address.address, address.fullAddress, address.shippingAddressStr)
+  if (savedAddress) return savedAddress
+
+  return [
+    pickAddressValue(address.street, address.addressLine),
+    pickAddressValue(address.ward, address.wardName),
+    pickAddressValue(address.province, address.city, address.provinceName, address.cityName),
+  ]
+    .filter(Boolean)
+    .join(', ')
+}
+
 function CheckoutPage() {
   usePageTitle('Thanh toán - Synex')
 
@@ -135,21 +177,30 @@ function CheckoutPage() {
       setWards([])
       return
     }
+
     const prov = provinces.find(p => p.name === newAddress.city)
-    if (prov) {
-      fetch(`https://provinces.open-api.vn/api/v2/p/${prov.code}?depth=3`)
-        .then(res => res.json())
-        .then(data => {
-          const allWards = []
-          if (data.districts) {
-            data.districts.forEach(d => {
-              if (d.wards) allWards.push(...d.wards)
-            })
-          }
-          setWards(allWards)
-        })
-        .catch(err => console.error(err))
+    if (!prov) {
+      setWards([])
+      return
     }
+
+    fetch(`https://provinces.open-api.vn/api/v2/p/${prov.code}?depth=2`)
+      .then(res => res.json())
+      .then(data => {
+        // API v2 bỏ cấp quận/huyện nên phường/xã nằm trực tiếp trong data.wards.
+        // Giữ thêm fallback data.districts để không vỡ nếu API trả cấu trúc cũ.
+        const allWards = Array.isArray(data.wards)
+          ? data.wards
+          : Array.isArray(data.districts)
+            ? data.districts.flatMap(d => Array.isArray(d.wards) ? d.wards : [])
+            : []
+
+        setWards(allWards)
+      })
+      .catch(err => {
+        console.error('Không tải được danh sách phường/xã:', err)
+        setWards([])
+      })
   }, [newAddress.city, provinces])
   // Đếm ngược thời gian QR (20 phút)
   useEffect(() => {
@@ -259,14 +310,16 @@ function CheckoutPage() {
   }
 
   const handleOpenEditModal = (addr) => {
+    const savedAddressParts = splitSavedAddress(addr.address)
+
     setEditingAddressId(addr.id)
     setNewAddress({
       fullName: addr.fullName || '',
       phoneNumber: addr.phone || addr.phoneNumber || '',
-      // FIX: Đọc cả 2 trường province và city để đảm bảo có dữ liệu gán vào Form
-      city: addr.province || addr.city || '',
-      ward: addr.ward || '',
-      addressLine: addr.street || addr.addressLine || '' 
+      // Đọc cả địa chỉ dạng tách trường và địa chỉ dạng chuỗi mà backend đang lưu.
+      city: addr.province || addr.city || savedAddressParts.city || '',
+      ward: addr.ward || savedAddressParts.ward || '',
+      addressLine: addr.street || addr.addressLine || savedAddressParts.addressLine || '' 
     })
     setIsAddressModalOpen(true)
   }
@@ -316,10 +369,13 @@ function CheckoutPage() {
       const activeAddr = addresses.find(a => a.id === editingAddressId);
       const isCurrentlyDefault = activeAddr ? (activeAddr.isDefault || activeAddr.default) : false;
 
+      const addressText = buildAddressText(newAddress)
+
       const payload = {
         fullName: newAddress.fullName,
         phone: newAddress.phoneNumber, 
         phoneNumber: newAddress.phoneNumber, 
+        address: addressText,
         street: newAddress.addressLine, 
         addressLine: newAddress.addressLine, 
         ward: newAddress.ward,
@@ -464,8 +520,8 @@ function CheckoutPage() {
                 <p className="text-slate-500 text-sm">Chưa có địa chỉ nào được lưu.</p>
               ) : (
                 addresses.map((addr) => {
-                  // FIX: Đọc province || city để hiển thị đầy đủ
-                  const displayAddress = [addr.street || addr.addressLine, addr.ward, addr.province || addr.city].filter(Boolean).join(', ')
+                  // Backend hiện lưu địa chỉ trong trường address, fallback thêm các trường tách nếu có.
+                  const displayAddress = formatAddressText(addr)
 
                   return (
                     <div key={addr.id} className={`rounded-2xl border p-4 transition-all ${selectedAddressId === addr.id ? 'border-sky-500 bg-sky-50/50' : 'border-slate-200 hover:border-sky-300'}`}>
