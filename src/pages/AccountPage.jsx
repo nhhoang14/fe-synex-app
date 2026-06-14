@@ -72,14 +72,32 @@ function AccountPage() {
   }, [location])
 
   useEffect(() => {
-    function loadWishlist() {
-      const stored = JSON.parse(localStorage.getItem('wishlist') || '[]')
-      setWishlist(stored)
-    }
-    loadWishlist()
-    window.addEventListener('wishlistUpdated', loadWishlist)
-    return () => window.removeEventListener('wishlistUpdated', loadWishlist)
-  }, [])
+    let active = true;
+    const loadWishlist = async () => {
+      if (!token) {
+        const stored = JSON.parse(localStorage.getItem('wishlist') || '[]');
+        setWishlist(stored);
+        return;
+      }
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+        const res = await fetch(`${API_URL}/api/wishlist/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok && active) {
+          const data = await res.json();
+          setWishlist(Array.isArray(data) ? data : []);
+        }
+      } catch (err) { console.error("Lỗi tải wishlist:", err); }
+    };
+
+    loadWishlist();
+    window.addEventListener('wishlistUpdated', loadWishlist);
+    return () => {
+      active = false;
+      window.removeEventListener('wishlistUpdated', loadWishlist);
+    };
+  }, [token]);
 
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false)
   const [editingAddressId, setEditingAddressId] = useState(null)
@@ -406,12 +424,30 @@ function AccountPage() {
       }
     }
 
-  function handleRemoveFromWishlist(productId) {
-    const newWishlist = wishlist.filter((item) => getProductId(item) !== productId)
-    localStorage.setItem('wishlist', JSON.stringify(newWishlist))
-    setWishlist(newWishlist)
-    window.dispatchEvent(new Event('wishlistUpdated'))
-    setMessage('Đã bỏ thích sản phẩm.')
+  async function handleRemoveFromWishlist(productId) {
+    if (!window.confirm('Bạn có muốn bỏ yêu thích sản phẩm này?')) return
+    setMessage('')
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const res = await fetch(`${API_URL}/api/wishlist/${productId}/toggle`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!res.ok) throw new Error('Không thể cập nhật danh sách yêu thích.')
+
+      // Cập nhật LocalStorage để đồng bộ các component khác (như NavBar)
+      const stored = JSON.parse(localStorage.getItem('wishlist') || '[]')
+      const filtered = stored.filter(item => getProductId(item) !== productId)
+      localStorage.setItem('wishlist', JSON.stringify(filtered))
+      
+      // Bắn sự kiện để useEffect phía trên tự động load lại dữ liệu từ API
+      window.dispatchEvent(new Event('wishlistUpdated'))
+      setMessage('Đã bỏ yêu thích sản phẩm.')
+    } catch (err) {
+      setMessage(err.message)
+    }
   }
 
   async function handleAddToCart(product) {
@@ -875,13 +911,12 @@ function AccountPage() {
                           </Link>
                           
                           <div className="flex items-center gap-3 sm:w-auto">
-                            <button
-                              type="button"
-                              onClick={() => handleAddToCart(product)}
+                            <Link
+                              to={`/products/${productId}`}
                               className="rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 shadow-sm whitespace-nowrap"
                             >
-                              Thêm vào giỏ
-                            </button>
+                              Xem chi tiết
+                            </Link>
                             <button
                               type="button"
                               onClick={(e) => {

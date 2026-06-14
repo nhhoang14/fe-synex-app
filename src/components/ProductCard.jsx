@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import {
   formatCurrency,
   getProductId,
@@ -9,11 +10,11 @@ import {
 } from '../utils/normalizers'
 
 function ProductCard({ product, compact = false, onNotify }) {
+  const { token, isAuthenticated } = useAuth()
   const [liked, setLiked] = useState(false)
 
   const productId = getProductId(product)
 
-  // Rút gọn số lượng đã bán theo hàng đơn vị (k cho nghìn, m cho triệu) để tiết kiệm diện tích
   const soldCount = product?.soldQuantity || product?.sold || 0
   const formattedSold = soldCount >= 1000000 
     ? (soldCount / 1000000).toFixed(1).replace(/\.0$/, '') + 'm'
@@ -22,11 +23,30 @@ function ProductCard({ product, compact = false, onNotify }) {
       : soldCount
 
   useEffect(() => {
+    // Nếu chưa đăng nhập, dùng tạm LocalStorage như cũ làm dự phòng
+    if (!isAuthenticated || !productId) {
     const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
     setLiked(wishlist.some((item) => getProductId(item) === productId))
-  }, [productId])
+      return
+    }
 
-  function handleToggleWishlist(event) {
+    // Nếu đã đăng nhập, lấy trạng thái thực từ Database qua API
+    const checkWishlistStatus = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+        const res = await fetch(`${API_URL}/api/wishlist/${productId}/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        if (res.ok) {
+          const status = await res.json()
+          setLiked(status)
+        }
+      } catch (err) { console.error("Lỗi đồng bộ yêu thích:", err) }
+    }
+    checkWishlistStatus()
+  }, [productId, isAuthenticated, token])
+
+  async function handleToggleWishlist(event) {
     if (event) {
       event.preventDefault()
       event.stopPropagation()
@@ -34,23 +54,42 @@ function ProductCard({ product, compact = false, onNotify }) {
     
     if (!productId) return
 
-    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
-    const exists = wishlist.some((item) => getProductId(item) === productId)
-
-    let newWishlist
-
-    if (exists) {
-      newWishlist = wishlist.filter((item) => getProductId(item) !== productId)
-      setLiked(false)
-      if (onNotify) onNotify('Đã bỏ thích sản phẩm.')
-    } else {
-      newWishlist = [...wishlist, product]
-      setLiked(true)
-      if (onNotify) onNotify(`Đã thêm ${getProductName(product)} vào sản phẩm đã thích!`)
+    // Yêu cầu đăng nhập mới được lưu vào Database
+    if (!isAuthenticated) {
+      if (onNotify) onNotify('Vui lòng đăng nhập để yêu thích sản phẩm!')
+      return
     }
 
-    localStorage.setItem('wishlist', JSON.stringify(newWishlist))
-    window.dispatchEvent(new Event('wishlistUpdated'))
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const res = await fetch(`${API_URL}/api/wishlist/${productId}/toggle`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!res.ok) throw new Error('Không thể cập nhật danh sách yêu thích.')
+
+      const newLikedStatus = !liked
+      setLiked(newLikedStatus)
+
+      // Cập nhật LocalStorage và bắn Event để đồng bộ UI toàn ứng dụng
+    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
+      const updatedWishlist = newLikedStatus 
+        ? [...wishlist, product] 
+        : wishlist.filter((item) => getProductId(item) !== productId)
+
+      localStorage.setItem('wishlist', JSON.stringify(updatedWishlist))
+      window.dispatchEvent(new Event('wishlistUpdated'))
+      
+      if (onNotify) {
+        onNotify(newLikedStatus 
+          ? `Đã thêm ${getProductName(product)} vào danh sách yêu thích!` 
+          : 'Đã bỏ yêu thích sản phẩm.'
+        )
+      }
+    } catch (err) {
+      if (onNotify) onNotify(err.message)
+    }
   }
 
   return (
