@@ -15,10 +15,20 @@ function ContactPage() {
   
   const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false) // Thêm state xử lý loading khi đang gửi API
+  const [imageFile, setImageFile] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
 
   function handleChange(event) {
     const { name, value } = event.target
     setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  function handleImageChange(e) {
+    const file = e.target.files[0]
+    if (file) {
+      setImageFile(file)
+      setImagePreview(URL.createObjectURL(file))
+    }
   }
 
   // FIX: Chuyển thành async function và gọi API POST lên Backend
@@ -27,16 +37,23 @@ function ContactPage() {
     setLoading(true)
 
     try {
+      const formData = new FormData()
+      formData.append('fullName', form.fullName)
+      formData.append('email', form.email)
+      formData.append('phone', form.phone)
+      formData.append('topic', form.topic)
+      formData.append('message', form.message)
+      if (imageFile) {
+        formData.append('imageFile', imageFile)
+      }
+
       // Sử dụng biến môi trường hoặc fallback về localhost
       const API_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8080'
       
       // Gọi API POST gửi thông tin (Backend thường mở Public cho endpoint này, không cần token)
       const response = await fetch(`${API_URL}/api/contact-messages`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(form)
+        body: formData
       })
 
       if (!response.ok) {
@@ -46,6 +63,8 @@ function ContactPage() {
       setSubmitted(true)
       // Reset form cho sạch sẽ sau khi gửi thành công
       setForm({ fullName: '', email: '', phone: '', topic: '', message: '' })
+      setImageFile(null)
+      setImagePreview(null)
       
       // Ẩn thông báo thành công sau 5 giây (Tùy chọn)
       setTimeout(() => setSubmitted(false), 5000)
@@ -228,6 +247,28 @@ function ContactPage() {
                 required
                 className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
               />
+            </label>
+
+            <label className="mt-4 block space-y-2">
+              <span className="text-sm font-medium text-ink">Hình ảnh đính kèm (nếu có)</span>
+              <div className="flex items-center gap-4">
+                <label className="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-slate-50 transition hover:bg-slate-100 relative overflow-hidden">
+                  <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center">
+                      <span className="material-symbols-outlined text-3xl text-slate-400">cloud_upload</span>
+                      <p className="mt-1 text-xs text-slate-500 font-medium">Bấm để tải ảnh minh họa</p>
+                    </div>
+                  )}
+                </label>
+                {imagePreview && (
+                  <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }} className="rounded-full bg-red-50 p-2 text-red-500 hover:bg-red-100 transition" title="Xóa ảnh">
+                    <span className="material-symbols-outlined">delete</span>
+                  </button>
+                )}
+              </div>
             </label>
 
             <button

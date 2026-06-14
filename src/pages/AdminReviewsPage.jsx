@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -8,6 +8,7 @@ function AdminContactsPage() {
   const { token } = useAuth();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('ALL');
 
   // Gọi API lấy danh sách liên hệ
   const fetchMessages = async () => {
@@ -46,19 +47,17 @@ function AdminContactsPage() {
     }
   };
 
-  // Hàm xử lý duyệt / Đánh dấu đã xử lý
   const handleMarkAsProcessed = async (id) => {
     if (!window.confirm('Đánh dấu liên hệ này là "Đã xử lý"?')) return;
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      // Giả định backend có API PUT để update status. Thay đổi đường dẫn nếu BE của bạn thiết kế khác
-      const response = await fetch(`${API_URL}/api/admin/contact-messages/${id}`, {
-        method: 'PUT',
+      const response = await fetch(`${API_URL}/api/admin/contact-messages/${id}/status`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ status: 'RESOLVED' }) // Hoặc isProcessed: true tùy Backend
+        body: JSON.stringify({ status: 'RESOLVED' })
       });
 
       if (!response.ok) throw new Error('Cập nhật thất bại');
@@ -93,8 +92,18 @@ function AdminContactsPage() {
 
   // Tính toán thống kê
   const totalMessages = messages.length;
-  const pendingMessages = messages.filter(m => m.status === 'PENDING' || m.status === 'Chưa duyệt' || !m.isProcessed).length;
+  const pendingMessages = messages.filter(m => m.status === 'NEW').length;
   const processedMessages = totalMessages - pendingMessages;
+
+  // Logic lọc danh sách theo trạng thái
+  const filteredMessages = useMemo(() => {
+    if (filterStatus === 'ALL') return messages;
+    return messages.filter(msg => {
+      const isMsgPending = msg.status === 'NEW';
+      // Nếu filter là NEW thì lấy tin chưa xử lý, ngược lại lấy tin đã xử lý
+      return filterStatus === 'NEW' ? isMsgPending : !isMsgPending;
+    });
+  }, [messages, filterStatus]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -121,19 +130,46 @@ function AdminContactsPage() {
 
       {/* Danh sách Liên hệ */}
       <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-gray-200 bg-slate-50 px-6 py-4">
+        <div className="border-b border-gray-200 bg-slate-50 px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <h2 className="font-semibold text-gray-900">Danh sách yêu cầu mới nhất</h2>
+          <select 
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-sky-500 focus:outline-none bg-white font-medium cursor-pointer"
+          >
+            <option value="ALL">Tất cả trạng thái</option>
+            <option value="NEW">Mới (Chưa xử lý)</option>
+            <option value="RESOLVED">Đã xử lý</option>
+          </select>
         </div>
         
         <div className="divide-y divide-gray-100">
           {loading ? (
             <p className="p-6 text-center text-gray-500">Đang tải dữ liệu...</p>
-          ) : messages.length === 0 ? (
-            <p className="p-6 text-center text-gray-500">Chưa có phản hồi liên hệ nào.</p>
+          ) : filteredMessages.length === 0 ? (
+            <p className="p-6 text-center text-gray-500">
+              {filterStatus === 'ALL' 
+                ? 'Chưa có phản hồi liên hệ nào.' 
+                : `Không tìm thấy phản hồi nào ở trạng thái "${filterStatus === 'NEW' ? 'Mới' : 'Đã xử lý'}".`}
+            </p>
           ) : (
-            messages.map((msg) => {
-              // Phân tích trạng thái (Hỗ trợ nhiều kiểu format Backend trả về)
-              const isPending = msg.status === 'PENDING' || msg.status === 'Chưa duyệt' || !msg.isProcessed;
+            filteredMessages.map((msg) => {
+              // Nút tích sẽ hiện nếu status là NEW
+              const isPending = msg.status === 'NEW';
+              
+              // Xử lý đường dẫn ảnh đính kèm (Logic tương tự AdminCategoriesPage)
+              const imagePath = msg.imageUrl || msg.image || msg.imagePath;
+              const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+              let fullImageUrl = null;
+              if (imagePath && typeof imagePath === 'string' && imagePath !== 'null') {
+                if (imagePath.startsWith('http')) {
+                  fullImageUrl = imagePath;
+                } else {
+                  let cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+                  if (!cleanPath.startsWith('uploads/')) cleanPath = `uploads/${cleanPath}`;
+                  fullImageUrl = `${API_URL}/${cleanPath}`;
+                }
+              }
               
               return (
                 <div key={msg.id} className="p-6 transition hover:bg-slate-50 flex flex-col md:flex-row justify-between gap-6">
@@ -162,6 +198,23 @@ function AdminContactsPage() {
                       <p className="font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Nội dung tin nhắn</p>
                       {msg.message}
                     </div>
+
+                    {/* HIỂN THỊ ẢNH ĐÍNH KÈM NẾU CÓ */}
+                    {fullImageUrl && (
+                      <div className="mt-4">
+                        <p className="font-semibold text-xs text-gray-400 uppercase tracking-wider mb-2">Hình ảnh đính kèm</p>
+                        <a href={fullImageUrl} target="_blank" rel="noreferrer" className="inline-block group relative">
+                          <img 
+                            src={fullImageUrl} 
+                            alt="Attachment" 
+                            className="max-h-64 rounded-xl border border-gray-200 object-contain shadow-sm transition hover:brightness-90 bg-white" 
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/10 rounded-xl">
+                            <span className="material-symbols-outlined text-white text-3xl">zoom_in</span>
+                          </div>
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-3 md:items-end justify-start min-w-[140px]">
@@ -173,7 +226,7 @@ function AdminContactsPage() {
                           : 'bg-emerald-50 text-emerald-700 border-emerald-200',
                       ].join(' ')}
                     >
-                      {isPending ? 'Chưa xử lý' : 'Đã xử lý'}
+                      {isPending ? 'Mới' : 'Đã xử lý'}
                     </span>
                     
                     <div className="flex gap-2 mt-2">
