@@ -33,6 +33,17 @@ function NavBar() {
 
   const menuRef = useRef(null)
 
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    const keyword = searchKeyword.trim()
+    if (keyword) {
+      navigate(`/products?q=${encodeURIComponent(keyword)}`)
+    } else {
+      navigate('/products')
+    }
+    setSearchOpen(false) // 👉 Thêm dòng này để tự động ẩn thanh panel tìm kiếm đi sau khi nhảy trang
+  }
+
   const queryKeyword = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return params.get('q') || ''
@@ -106,23 +117,6 @@ function NavBar() {
     logout()
   }
 
-  function handleSearchSubmit(event) {
-    event.preventDefault()
-
-    const keyword = searchKeyword.trim()
-    const params = new URLSearchParams()
-
-    if (keyword) {
-      params.set('q', keyword)
-    }
-
-    navigate({
-      pathname: ROUTES.PRODUCTS,
-      search: params.toString() ? `?${params.toString()}` : '',
-    })
-
-    setSearchOpen(false)
-  }
 
   const filteredProducts = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase()
@@ -184,19 +178,26 @@ function NavBar() {
       </nav>
 
       <div className="flex items-center justify-end gap-3">
-        {/* NÚT TÌM KIẾM */}
-        <button
-          type="button"
-          className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-ink transition hover:-translate-y-0.5 hover:shadow-soft"
-          aria-label="Tìm kiếm"
-          onClick={() => {
-            setCartDropdownOpen(false)
-            setSearchKeyword(queryKeyword)
-            setSearchOpen(true)
-          }}
-        >
-          <span className="material-symbols-outlined">search</span>
-        </button>
+        {/* THANH TÌM KIẾM HÌNH CHỮ NHẬT NGANG */}
+        <form onSubmit={handleSearchSubmit} className="relative w-40 sm:w-56 md:w-64">
+          <input
+            type="text"
+            placeholder="Tìm sản phẩm bạn cần..."
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            // 👇 Thay đổi ở đây: đổi rounded-xl thành rounded-full
+            className="w-full h-10 rounded-full border border-slate-200 bg-slate-50 pl-4 pr-10 text-sm focus:border-blue-500 focus:bg-white focus:outline-none transition-all"
+          />
+          <button
+            type="submit"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition-colors"
+            aria-label="Tìm kiếm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+          </button>
+        </form>
 
         {/* CỤM MINICART: Hover sẽ hiện Dropdown, Click sẽ tới trang Giỏ Hàng */}
         <div
@@ -402,76 +403,33 @@ function NavBar() {
           )}
         </div>
       </div>
-
-      {/* PANEL TÌM KIẾM BÊN PHẢI (GIỮ NGUYÊN) */}
+      {/* PANEL TÌM KIẾM BÊN PHẢI (ĐÃ THU NGẮN VÀ LÀM SẠCH RUỘT) */}
       <RightOverlayPanel
         isOpen={searchOpen}
-        title="Tìm kiếm"
         onClose={() => setSearchOpen(false)}
+        title="Tìm kiếm"
+        isShort={true} // Kích hoạt chế độ lùn, ôm khít nội dung tìm kiếm
       >
-        <form className="border-b border-border pb-4" onSubmit={handleSearchSubmit}>
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-slate-500">search</span>
-
+        <div className="mt-4 pb-2">
+          <form onSubmit={handleSearchSubmit} className="relative">
             <input
-              autoFocus
+              type="text"
+              placeholder="Tìm sản phẩm bạn cần..."
               value={searchKeyword}
-              onChange={(event) => setSearchKeyword(event.target.value)}
-              placeholder="Tìm sản phẩm bạn cần"
-              className="w-full border-none bg-transparent text-lg font-medium text-ink outline-none placeholder:text-slate-400"
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className="w-full rounded-2xl border border-border px-4 py-3 pr-12 text-sm focus:border-ink focus:outline-none"
+              autoFocus
             />
-
             <button
-              type="button"
-              onClick={() => setSearchKeyword('')}
-              className="text-sm font-medium text-slate-500 hover:text-slate-700"
+              type="submit"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-ink transition-colors"
             >
-              Xóa
+              <span className="material-symbols-outlined">search</span>
             </button>
-          </div>
-        </form>
-
-        <div className="mb-5 mt-5 flex items-center gap-6 border-b border-border pb-3">
-          <p className="text-base font-bold text-ink">Sản phẩm</p>
-          <p className="text-base font-semibold text-slate-300">Gợi ý</p>
-          <p className="text-base font-semibold text-slate-300">Bài đăng trên blog</p>
-        </div>
-
-        <div className="space-y-3">
-          {filteredProducts.length === 0 ? (
-            <p className="text-sm text-slate-500">Không có sản phẩm phù hợp.</p>
-          ) : (
-            filteredProducts.map((product) => {
-              const productId = getProductId(product) || getProductName(product)
-
-              return (
-                <button
-                  key={productId}
-                  type="button"
-                  onClick={() => handleSelectProduct(product)}
-                  className="grid w-full grid-cols-[88px_1fr] gap-4 rounded-2xl border border-transparent p-2 text-left transition hover:border-border hover:bg-slate-50"
-                >
-                  <img
-                    src={getProductImage(product)}
-                    alt={getProductName(product)}
-                    className="h-[88px] w-[88px] rounded-xl object-cover"
-                  />
-
-                  <div>
-                    <p className="text-sm text-slate-500">Sản phẩm</p>
-                    <p className="mt-1 text-xl font-bold text-ink">
-                      {getProductName(product)}
-                    </p>
-                    <p className="mt-1 text-xl font-semibold text-red-500">
-                      {formatCurrency(getProductPrice(product))}
-                    </p>
-                  </div>
-                </button>
-              )
-            })
-          )}
+          </form>
         </div>
       </RightOverlayPanel>
+
     </header>
   )
 }
