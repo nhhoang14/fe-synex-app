@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ROUTES } from '../constants'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProducts } from '../services/catalogService'
-import { formatCurrency, getProductName, getProductPrice, normalizeImageUrl } from '../utils/normalizers'
+import { formatCurrency, getProductName, getProductPrice, normalizeImageUrl, getProductImage } from '../utils/normalizers'
 import { useAuth } from '../contexts/AuthContext'
 
 function AdminProductsPage() {
@@ -31,9 +31,8 @@ function AdminProductsPage() {
       stock: '',
       imageUrl: ''
     }]);
-    setImageFile(null);
-    setImagePreview(null);
-    setExistingProductImageUrls([]);
+    setImageFiles([]);
+    setExistingImages([]);
     setCurrentView('add');
   };
   const handleEditProduct = (product) => {
@@ -49,29 +48,43 @@ function AdminProductsPage() {
 
     // 2. Nạp danh sách biến thể hiện tại vào bảng
     const hasVariants = product.variants && product.variants.length > 0;
+    const attrGroupMap = {}; // Để gom nhóm thuộc tính hiển thị ở mục quản lý
     
     if (hasVariants) {
       const loadedVariants = product.variants.map((v, index) => {
-        // Chuyển mảng attributes từ Backend thành Object để hiển thị vào form
-        const parsedAttributes = {};
-        if (v.attributes && Array.isArray(v.attributes)) {
-          v.attributes.forEach(attr => {
-            parsedAttributes[attr.attributeName] = attr.attributeValue;
+        const attrObj = {};
+        // Chuyển mảng attributes [{attributeName, attributeValue}] từ server sang Object {name: value}
+        if (Array.isArray(v.attributes)) {
+          v.attributes.forEach(a => {
+            const name = a.attributeName || '';
+            const value = a.attributeValue || '';
+            if (name) {
+              attrObj[name] = value;
+              // Gom nhóm để tái tạo lại ô nhập "Các nhóm thuộc tính" phía trên
+              if (!attrGroupMap[name]) attrGroupMap[name] = new Set();
+              attrGroupMap[name].add(value);
+            }
           });
-        } else {
-          parsedAttributes['Phiên bản'] = 'Mặc định';
         }
 
         return {
           id: v.id,
-          attributes: parsedAttributes,
+          attributes: attrObj,
           sku: v.sku || `MS-${product.id}-V${index}`,
-          price: v.price || product.price || '',
+          price: v.price || '',
           stock: v.stockQuantity || v.stock || 0,
-          imageUrl: v.imageUrl || ''
+          imageUrl: v.imageUrl || '',
+          active: v.active !== false
         };
       });
       setGeneratedVariants(loadedVariants);
+
+      // Cập nhật lại các nhóm thuộc tính để hiện lên các ô nhập Tên/Giá trị
+      const loadedGroups = Object.entries(attrGroupMap).map(([name, valSet]) => ({
+        name,
+        values: Array.from(valSet).join(', ')
+      }));
+      setAttributeGroups(loadedGroups);
     } else {
       // Nếu sản phẩm không chia biến thể, tạo 1 dòng mặc định để sửa giá/kho
       setGeneratedVariants([{
@@ -82,14 +95,20 @@ function AdminProductsPage() {
         stock: product.stockQuantity || product.stock || 0,
         imageUrl: product.imageUrl || ''
       }]);
+      setAttributeGroups([]);
     }
 
-    // Làm rỗng mảng sinh tự động để tránh xung đột
-    setAttributeGroups([]);
-    const productImageUrls = getProductImageUrls(product);
-    setExistingProductImageUrls(productImageUrls);
-    setImagePreview(productImageUrls.length > 0 ? normalizeImageUrl(productImageUrls[0]) : null);
-    setImageFile(null); // Reset file upload
+    // Nạp danh sách ảnh sản phẩm chính từ server
+    const productImagesList = (product.productImages || product.images || [])
+      .map(img => typeof img === 'string' ? img : (img.url || img.imageUrl || img.imagePath))
+      .filter(Boolean)
+      .map(path => normalizeImageUrl(path)); // Chuẩn hóa URL ảnh cũ
+    
+    const mainUrl = product.imageUrl ? normalizeImageUrl(product.imageUrl) : null;
+    if (mainUrl && !productImagesList.includes(mainUrl)) productImagesList.unshift(mainUrl);
+
+    setExistingImages(productImagesList);
+    setImageFiles([]); 
     setCurrentView('edit');
   };
   const [expandedRows, setExpandedRows] = useState(new Set()) // Lưu ID các sản phẩm đang mở rộng
@@ -103,37 +122,8 @@ function AdminProductsPage() {
   // Thêm state lưu Danh mục, Thương hiệu và Ảnh
   const [categories, setCategories] = useState([])
   const [brands, setBrands] = useState([])
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState(null)
-  const [existingProductImageUrls, setExistingProductImageUrls] = useState([])
-
-  const MAX_IMAGE_SIZE_MB = 50
-  const MAX_REQUEST_SIZE_MB = 100
-  const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
-  const MAX_REQUEST_SIZE_BYTES = MAX_REQUEST_SIZE_MB * 1024 * 1024
-
-  const getProductImageUrls = (product) => {
-    const urls = []
-    ;(product?.images || product?.productImages || []).forEach((img) => {
-      const url = typeof img === 'string' ? img : img?.imageUrl || img?.url
-      if (url) urls.push(url)
-    })
-    if (product?.imageUrl) urls.push(product.imageUrl)
-    return [...new Set(urls)]
-  }
-
-  const validateImageFile = (file) => {
-    if (!file) return true
-    if (!file.type?.startsWith('image/')) {
-      alert('Chỉ được upload file ảnh.')
-      return false
-    }
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      alert(`Ảnh quá lớn. Tối đa ${MAX_IMAGE_SIZE_MB}MB mỗi file.`)
-      return false
-    }
-    return true
-  }
+  const [imageFiles, setImageFiles] = useState([]) // [{ file, preview }]
+  const [existingImages, setExistingImages] = useState([]) // URL strings
 
   // Gọi API lấy categories và brands
   async function fetchCategoriesAndBrands() {
@@ -284,167 +274,199 @@ function AdminProductsPage() {
     setGeneratedVariants(updatedVariants)
   }
 
-  // Tự động gọi lại hàm sinh biến thể mỗi khi Nhóm thuộc tính thay đổi
-  useEffect(() => {
-    // CHỈ sinh tự động khi đang ở chế độ Thêm mới
-    if (currentView === 'add') {
-      generateVariantsList()
-    }
-  }, [attributeGroups])
+  const handleVariantAttributeChange = (vIndex, attrName, newValue) => {
+    const updated = [...generatedVariants];
+    updated[vIndex].attributes = {
+      ...updated[vIndex].attributes,
+      [attrName]: newValue
+    };
+    setGeneratedVariants(updated);
+  };
+
   const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    if (!validateImageFile(file)) {
-      e.target.value = null
-      return
+    const files = Array.from(e.target.files);
+    const totalCurrent = existingImages.length + imageFiles.length;
+
+    if (totalCurrent + files.length > 10) {
+      alert(`Tổng số lượng ảnh không được vượt quá 10. Hiện bạn đã có ${totalCurrent} ảnh.`);
+      e.target.value = null;
+      return;
     }
 
-    setImageFile(file)
-    setExistingProductImageUrls([])
-    setImagePreview(URL.createObjectURL(file))
+    const newEntries = files.map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+
+    setImageFiles(prev => [...prev, ...newEntries]);
+    e.target.value = null;
+  };
+
+  const removeNewImage = (index) => {
+    setImageFiles(prev => {
+      const entry = prev[index];
+      if (entry.preview) URL.revokeObjectURL(entry.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  useEffect(() => {
+    if (currentView === 'add') generateVariantsList()
+  }, [attributeGroups])
+
+  // --- TÍNH NĂNG MỚI: BẬT/TẮT, XÓA, UPLOAD ẢNH CHO TỪNG BIẾN THỂ ---
+  const handleToggleVariant = (index) => {
+    const updated = [...generatedVariants];
+    updated[index].active = !updated[index].active;
+    setGeneratedVariants(updated);
   }
 
-  // Chỉ preview ảnh biến thể ở frontend. Không upload ngay khi chọn file.
-  // Upload ngay tại đây là nguyên nhân file đã nằm trong folder uploads dù sản phẩm lưu thất bại.
-  const handleVariantImageUpload = (index, file, event) => {
-    if (!file) return
-    if (!validateImageFile(file)) {
-      if (event?.target) event.target.value = null
-      return
-    }
-
-    const updatedVariants = [...generatedVariants]
-    const oldPreview = updatedVariants[index]?.imagePreview
-    if (oldPreview?.startsWith('blob:')) URL.revokeObjectURL(oldPreview)
-
-    updatedVariants[index] = {
-      ...updatedVariants[index],
-      rawFile: file,
-      imagePreview: URL.createObjectURL(file),
-      // imageUrl cũ chỉ được giữ khi không chọn file mới. Chọn file mới nghĩa là thay ảnh.
-      imageUrl: ''
-    }
-    setGeneratedVariants(updatedVariants)
-
-    if (event?.target) event.target.value = null
+  const handleDeleteVariant = (index) => {
+    if (!window.confirm('Bạn có chắc muốn xóa biến thể này khỏi danh sách?')) return;
+    setGeneratedVariants(generatedVariants.filter((_, i) => i !== index));
   }
 
-  const buildActiveVariants = () => {
-    return generatedVariants
-      .filter((v) => v.active !== false)
-      .map((v, index) => {
-        const attributes = Object.entries(v.attributes || {})
-          .filter(([attrName, attrValue]) => String(attrName || '').trim() && String(attrValue || '').trim())
-          .map(([attributeName, attributeValue]) => ({
-            attributeName: String(attributeName).trim(),
-            attributeValue: String(attributeValue).trim()
-          }))
-
-        return {
-          id: v.id || undefined,
-          sku: (v.sku || `MS-${Date.now().toString().slice(-4)}-${index}`).trim(),
-          price: Number(v.price),
-          stock: Number(v.stock),
-          active: true,
-          imageUrl: v.imageUrl || '',
-          rawFile: v.rawFile || null,
-          attributes
-        }
-      })
-  }
-
-  const validateBeforeSave = (variants) => {
-    if (!basicInfo.name.trim()) throw new Error('Vui lòng nhập tên sản phẩm.')
-    if (!basicInfo.description.trim()) throw new Error('Vui lòng nhập mô tả sản phẩm.')
-    if (!basicInfo.category) throw new Error('Vui lòng chọn danh mục.')
-    if (!basicInfo.brand) throw new Error('Vui lòng chọn thương hiệu.')
-    if (variants.length === 0) throw new Error('Cần ít nhất 1 biến thể đang bật.')
-
-    const seenSkus = new Set()
-    variants.forEach((variant, index) => {
-      if (!variant.sku) throw new Error(`Biến thể ${index + 1} chưa có SKU.`)
-      const normalizedSku = variant.sku.toUpperCase()
-      if (seenSkus.has(normalizedSku)) throw new Error(`SKU bị trùng trong form: ${variant.sku}`)
-      seenSkus.add(normalizedSku)
-      if (!Number.isFinite(variant.price) || variant.price <= 0) {
-        throw new Error(`Giá của biến thể ${variant.sku} phải lớn hơn 0.`)
+  const handleVariantImageUpload = async (index, file, event) => {
+    if (!file) return;
+    try {
+      // 1. TẢI ẢNH LÊN SERVER NGAY LẬP TỨC THEO Ý BẠN
+      const formData = new FormData(); 
+      formData.append('file', file); 
+      formData.append('purpose', 'PRODUCT_IMAGE');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      
+      const res = await fetch(`${API_URL}/api/uploads/images`, { 
+        method: 'POST', 
+        headers: { Authorization: `Bearer ${token}` }, 
+        body: formData 
+      });
+      
+      if (!res.ok) {
+        const errText = await res.text();
+        let errMsg = errText;
+        try { 
+            const errObj = JSON.parse(errText); 
+            errMsg = errObj.message || errObj.error || errText; 
+        } catch(e) {}
+        throw new Error(errMsg || 'Lỗi máy chủ khi lưu ảnh!');
       }
-      if (!Number.isInteger(variant.stock) || variant.stock < 0) {
-        throw new Error(`Kho của biến thể ${variant.sku} phải là số nguyên không âm.`)
-      }
-    })
-  }
+      
+      const data = await res.json();
+      const updatedVariants = [...generatedVariants];
+      
+      // 2. Gán link thật trả về từ server để hiển thị UI
+      updatedVariants[index].imageUrl = data.url || data.imageUrl; 
+      
+      // 3. VẪN NGẦM GIỮ LẠI FILE VẬT LÝ để đẩy lên FormData khi ấn "Lưu Sản Phẩm"
+      updatedVariants[index].rawFile = file;
+      
+      setGeneratedVariants(updatedVariants);
+      
+    } catch (err) { 
+      alert(`Backend từ chối ảnh: ${err.message}`); 
+    } finally {
+      if (event && event.target) event.target.value = null;
+    }
+  };
 
   async function handleSaveProduct(e) {
-    e.preventDefault()
-
+    if (e) e.preventDefault();
+    
     try {
-      const variants = buildActiveVariants()
-      validateBeforeSave(variants)
+      // --- BƯỚC 1: CHUẨN BỊ MẢNG ATTRIBUTES SẠCH ---
+      const cleanVariants = generatedVariants
+        .filter(v => v.active !== false) // Chỉ lấy biến thể đang bật
+        .map((v, index) => {
+          // Biến đổi attributes từ Object { "Màu sắc": "Đen" } sang mảng các Object [{attributeName: "Màu sắc", attributeValue: "Đen"}]
+          let formattedAttributes = [];
+          if (v.attributes && typeof v.attributes === 'object') {
+            Object.entries(v.attributes).forEach(([attrName, attrValue]) => {
+              const cleanName = String(attrName || '').trim();
+              const cleanValue = String(attrValue || '').trim();
+              if (cleanName && cleanValue) {
+                formattedAttributes.push({
+                  attributeName: cleanName,
+                  attributeValue: cleanValue
+                });
+              }
+            });
+          }
 
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-      const url = editingProductId
-        ? `${API_URL}/api/admin/products/${editingProductId}`
-        : `${API_URL}/api/admin/products`
+          return {
+            id: v.id || null,
+            sku: (v.sku || `MS-${Date.now().toString().slice(-4)}-${index}`).trim(),
+            price: Number(v.price) || 0,
+            stock: Number(v.stock) || 0,
+            imageUrl: v.imageUrl || '', // Giữ link ảnh cũ nếu không đổi ảnh
+            active: v.active !== false,
+            attributes: formattedAttributes
+          };
+        });
 
-      // FIX CỨNG: lưu sản phẩm bằng JSON 100%, không dùng multipart/form-data ở màn này.
-      // Lý do: lỗi "Maximum upload size exceeded" chỉ xảy ra khi backend đang parse multipart.
-      // Với trường hợp không chọn ảnh, gửi JSON sẽ loại bỏ hoàn toàn multipart parser.
-      const body = {
-        name: basicInfo.name.trim(),
-        description: basicInfo.description.trim(),
-        categoryId: Number(basicInfo.category),
-        brandId: Number(basicInfo.brand),
+      // --- BƯỚC 2: GỘP TẤT CẢ THÔNG TIN CHỮ THÀNH 1 ĐỐI TƯỢNG JSON ---
+      const productPayload = {
+        name: (basicInfo.name || '').trim(),
+        description: (basicInfo.description || '').trim(),
+        categoryId: basicInfo.category ? Number(basicInfo.category) : null,
+        brandId: basicInfo.brand ? Number(basicInfo.brand) : null,
         active: true,
-        keepImageUrls: existingProductImageUrls,
-        variants: variants.map(({ rawFile, imagePreview, ...variant }) => ({
-          id: variant.id,
-          sku: variant.sku,
-          price: variant.price,
-          stock: variant.stock,
-          active: variant.active !== false,
-          imageUrl: variant.imageUrl || '',
-          attributes: variant.attributes
-        }))
-      }
+        variants: cleanVariants,
+        keepImageUrls: existingImages
+      };
 
-      console.log('[AdminProductsPage] save product as JSON, no multipart', {
-        url,
-        method: editingProductId ? 'PUT' : 'POST',
-        ignoredProductImageFile: imageFile ? { name: imageFile.name, size: imageFile.size } : null,
-        ignoredVariantFiles: variants
-          .filter((variant) => variant.rawFile)
-          .map((variant) => ({ sku: variant.sku, name: variant.rawFile.name, size: variant.rawFile.size }))
-      })
+      // --- BƯỚC 3: ĐÓNG GÓI VÀO FORMDATA (TÁCH RIÊNG JSON VÀ FILE) ---
+      const formData = new FormData();
+      
+      // Chuyển đối tượng sang Blob định dạng application/json để Spring Boot tự nhận diện DTO
+      formData.append(
+        'productData', 
+        new Blob([JSON.stringify(productPayload)], { type: 'application/json' })
+      );
+
+      // Append danh sách ảnh sản phẩm chính
+      imageFiles.forEach(entry => {
+        formData.append('productImages', entry.file);
+      });
+
+      // Append danh sách ảnh của các biến thể (Key: variantImages)
+      // Backend nhận một List<MultipartFile>, chúng ta append liên tiếp các file vật lý (rawFile)
+      generatedVariants.forEach((v) => {
+        if (v.active !== false && v.rawFile) {
+          formData.append('variantImages', v.rawFile);
+        }
+      });
+
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const url = editingProductId 
+        ? `${API_URL}/api/admin/products/${editingProductId}` 
+        : `${API_URL}/api/admin/products`;
 
       const response = await fetch(url, {
         method: editingProductId ? 'PUT' : 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`
+          // Trình duyệt tự sinh boundary cho multipart/form-data nên KHÔNG truyền Content-Type
         },
-        body: JSON.stringify(body)
-      })
+        body: formData
+      });
 
       if (!response.ok) {
-        let errorMessage = 'Lỗi lưu sản phẩm'
+        let errorMessage = 'Lỗi lưu sản phẩm';
         try {
-          const errorData = await response.json()
-          errorMessage = errorData.message || errorData.error || errorMessage
-        } catch (err) {
-          errorMessage = await response.text()
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch(err) {
+            errorMessage = await response.text();
         }
-        throw new Error(errorMessage)
+        throw new Error(errorMessage);
       }
 
-      alert('Lưu sản phẩm thành công!')
-      setCurrentView('list')
-      setImageFile(null)
-      setImagePreview(null)
-      fetchProductsList()
+      alert('Lưu sản phẩm thành công!');
+      setCurrentView('list');
+      fetchProductsList(); 
     } catch (error) {
-      console.error('Lưu lỗi:', error)
-      alert('Không thể lưu sản phẩm: ' + error.message)
+      console.error('Lưu lỗi:', error);
+      alert('Không thể lưu sản phẩm: ' + error.message);
     }
   }
 
@@ -523,19 +545,43 @@ function AdminProductsPage() {
               ></textarea>
             </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium text-slate-700">Hình ảnh chung</label>
-              <label className="block border-2 border-dashed border-slate-300 rounded-xl p-8 text-center bg-slate-50 hover:bg-slate-100 cursor-pointer transition relative overflow-hidden">
-                {/* FIX: Đưa thẻ input về đúng hàm của ảnh chung, xóa bỏ các biến variant/index gây lỗi crash */}
-                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-                {imagePreview ? (
-                   <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-contain bg-white" />
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-4xl text-slate-400">cloud_upload</span>
-                    <p className="mt-2 text-sm text-slate-500 font-medium">Bấm để tải ảnh lên (lưu vào bảng ProductImage)</p>
-                  </>
+              <label className="text-sm font-medium text-slate-700">Hình ảnh sản phẩm (Tối đa 10 ảnh)</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+                {/* Ảnh cũ từ Server */}
+                {existingImages.map((url, idx) => (
+                  <div key={`old-${idx}`} className="relative aspect-square rounded-xl border border-slate-200 overflow-hidden bg-slate-50 group">
+                    <img src={url} alt="existing" className="w-full h-full object-cover" />
+                    <button 
+                      type="button"
+                      onClick={() => setExistingImages(prev => prev.filter((_, i) => i !== idx))}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition shadow-md"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                  </div>
+                ))}
+
+                {/* Ảnh mới chọn chờ upload */}
+                {imageFiles.map((entry, idx) => (
+                  <div key={`new-${idx}`} className="relative aspect-square rounded-xl border border-sky-200 overflow-hidden bg-sky-50 group">
+                    <img src={entry.preview} alt="new" className="w-full h-full object-cover" />
+                    <button type="button" onClick={() => removeNewImage(idx)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow-md">
+                       <span className="material-symbols-outlined text-[16px]">close</span>
+                    </button>
+                    <div className="absolute bottom-1 left-1 bg-sky-600 text-white text-[8px] px-1 py-0.5 rounded font-bold uppercase">Mới</div>
+                  </div>
+                ))}
+
+                {/* Nút thêm ảnh */}
+                {(existingImages.length + imageFiles.length) < 10 && (
+                  <label className="aspect-square border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 cursor-pointer transition">
+                    <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageChange} />
+                    <span className="material-symbols-outlined text-slate-400 text-3xl">add_photo_alternate</span>
+                    <span className="text-[10px] font-bold text-slate-500 mt-1 uppercase">Thêm ảnh</span>
+                  </label>
                 )}
-              </label>
+              </div>
+              <p className="text-[11px] text-slate-400 italic mt-2">* Bạn có thể chọn nhiều ảnh cùng lúc. Ảnh đầu tiên trong danh sách thường được dùng làm ảnh đại diện.</p>
             </div>
           </div>
         </section>
@@ -600,10 +646,20 @@ function AdminProductsPage() {
                   <tbody className="divide-y divide-slate-700 bg-slate-900/50">
                     {generatedVariants.map((variant, index) => (
                       <tr key={index} className={`transition duration-300 ${variant.active === false ? 'opacity-40 grayscale' : 'hover:bg-slate-800/50'}`}>
-                        <td className="p-4 text-sm text-sky-300 font-medium">
-                          {Object.entries(variant.attributes).map(([key, val]) => (
-                            <div key={key} className="mb-1">{key}: <span className="text-white">{val}</span></div>
-                          ))}
+                        <td className="p-4 text-sm text-sky-300 font-medium min-w-[220px]">
+                          <div className="grid grid-cols-2 gap-2">
+                            {Object.entries(variant.attributes).map(([key, val], i, arr) => (
+                              <div key={key} className={`flex flex-col gap-1 ${arr.length === 3 && i === 2 ? 'col-span-2' : ''}`}>
+                                <span className="text-[10px] text-slate-500 uppercase font-bold">{key}</span>
+                                <input
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) => handleVariantAttributeChange(index, key, e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-white text-xs focus:border-sky-500 outline-none"
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </td>
                         <td className="p-4">
                           <input type="text" className="w-full bg-slate-800 border border-slate-600 rounded-lg px-2 py-2 text-sm text-slate-300 focus:border-sky-500 outline-none font-mono" disabled={variant.active === false} value={variant.sku} onChange={(e) => handleVariantChange(index, 'sku', e.target.value)} />
@@ -619,8 +675,8 @@ function AdminProductsPage() {
                           <label className="block w-10 h-10 mx-auto border border-slate-600 border-dashed rounded cursor-pointer hover:border-sky-400 transition overflow-hidden relative bg-slate-800" title="Tải ảnh biến thể">
                             {/* FIX: Thêm tham số sự kiện 'e' vào cuối hàm handleVariantImageUpload */}
                             <input type="file" className="hidden" accept="image/*" disabled={variant.active === false} onChange={(e) => handleVariantImageUpload(index, e.target.files[0], e)} />
-                            {(variant.imagePreview || variant.imageUrl) ? (
-                              <img src={variant.imagePreview || normalizeImageUrl(variant.imageUrl)} alt="variant" className="w-full h-full object-cover" />
+                            {variant.imageUrl ? (
+                              <img src={normalizeImageUrl(variant.imageUrl)} alt="variant" className="w-full h-full object-cover" />
                             ) : (
                               <span className="material-symbols-outlined text-[18px] text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">add_photo_alternate</span>
                             )}
@@ -729,8 +785,9 @@ function AdminProductsPage() {
                       </td>
                       <td className="px-4 py-4">
                         <div className="w-10 h-10 bg-slate-800 rounded border border-slate-700 flex items-center justify-center overflow-hidden">
-                          {product.imageUrl ? (
-                            <img src={product.imageUrl} alt="img" className="w-full h-full object-cover" />
+                          {/* Sử dụng getProductImage để lấy ảnh variant đầu tiên làm đại diện */}
+                          {getProductImage(product) ? (
+                            <img src={getProductImage(product)} alt="img" className="w-full h-full object-cover" />
                           ) : (
                             <span className="material-symbols-outlined text-slate-500 text-[20px]">image</span>
                           )}
@@ -769,7 +826,7 @@ function AdminProductsPage() {
                           <div className="absolute left-6 top-1/2 w-4 h-px bg-slate-700"></div>
                           <div className="w-8 h-8 bg-slate-800 rounded border border-slate-700 flex items-center justify-center ml-4 overflow-hidden">
                             {variant.imageUrl ? (
-                              <img src={variant.imageUrl} alt="img" className="w-full h-full object-cover" />
+                              <img src={normalizeImageUrl(variant.imageUrl)} alt="img" className="w-full h-full object-cover" />
                             ) : (
                               <span className="material-symbols-outlined text-slate-500 text-[16px]">image</span>
                             )}
@@ -779,10 +836,9 @@ function AdminProductsPage() {
                           SKU: {variant.sku || `MS-${id}-V${vIdx}`}
                         </td>
                         <td className="px-4 py-3 text-sky-200 text-sm font-medium">
-                          {variant.attributes && variant.attributes.length > 0
-                            ? variant.attributes.map(a => `${a.attributeName}: ${a.attributeValue}`).join(' / ')
-                            : 'Phiên bản mặc định'
-                          }
+                           {/* Giả lập lấy chuỗi thuộc tính nếu Backend chưa trả sẵn thành chuỗi */}
+                           {variant.color} {variant.color && variant.connection ? '/' : ''} {variant.connection}
+                           {!variant.color && !variant.connection && 'Phiên bản mặc định'}
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-sm">
                           {formatCurrency(variant.price || getProductPrice(product))}
