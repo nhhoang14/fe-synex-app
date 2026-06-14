@@ -55,10 +55,10 @@ export function CartProvider({ children }) {
     }
   }, [token])
 
-  const addToCart = useCallback(async (productId, quantity = 1, variantId = null) => {
+  const addToCart = useCallback(async (quantity = 1, variantId = null) => {
     if (!token) throw new Error('Vui lòng đăng nhập trước khi mua hàng')
 
-    await addProductToCart(token, { productId, quantity, variantId })
+    await addProductToCart(token, { quantity, variantId })
     return await fetchCart()
   }, [token, fetchCart])
 

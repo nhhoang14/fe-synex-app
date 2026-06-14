@@ -6,17 +6,25 @@ export function getProductName(product) {
   return product?.name || product?.productName || product?.title || 'Unnamed product'
 }
 
+export function normalizeImageUrl(path) {
+  if (!path || typeof path !== 'string' || path === 'null') return '';
+  if (path.startsWith('http') || path.startsWith('blob:')) return path;
+  
+  // Sử dụng VITE_API_URL hoặc mặc định localhost:8080 theo yêu cầu
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+  let cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  if (!cleanPath.startsWith('uploads/')) cleanPath = `uploads/${cleanPath}`;
+  return `${API_URL}/${cleanPath}`;
+}
+
 export function getProductImage(product) {
-  // Ưu tiên lấy ảnh từ variant đầu tiên nếu có
-  if (product?.variants && product.variants.length > 0 && product.variants[0].imageUrl) {
-    return product.variants[0].imageUrl;
-  }
-  return (
-    product?.imageUrl ||
-    product?.thumbnail ||
-    product?.image ||
-    'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80'
-  )
+  const path = product?.variants?.[0]?.imageUrl || 
+               product?.imageUrl || 
+               product?.thumbnail || 
+               product?.image;
+
+  if (!path) return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80';
+  return normalizeImageUrl(path);
 }
 
 // ĐÃ SỬA: Lấy giá từ biến thể (variant) thay vì sản phẩm gốc
