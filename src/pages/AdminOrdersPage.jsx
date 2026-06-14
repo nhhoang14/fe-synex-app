@@ -15,6 +15,10 @@ function AdminOrdersPage() {
   const [isLoadingOrder, setIsLoadingOrder] = useState(false)
   const [updatingId, setUpdatingId] = useState(null)
 
+  // State quản lý bộ lọc
+  const [filterStatus, setFilterStatus] = useState('ALL')
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState('ALL')
+
   useEffect(() => {
     let active = true
 
@@ -72,8 +76,18 @@ function AdminOrdersPage() {
     return () => { active = false }
   }, [selectedOrderId, token])
 
-  // Hiển thị tối đa 50 đơn hàng gần nhất
-  const latestOrders = useMemo(() => orders.slice(0, 50), [orders])
+  // Logic lọc danh sách đơn hàng theo trạng thái và phương thức thanh toán
+  const filteredOrdersList = useMemo(() => {
+    return orders.filter(order => {
+      const status = String(order.status || order.orderStatus || 'PENDING').toUpperCase()
+      const matchStatus = filterStatus === 'ALL' || status === filterStatus
+      const matchPayment = filterPaymentMethod === 'ALL' || order.paymentMethod === filterPaymentMethod
+      return matchStatus && matchPayment
+    })
+  }, [orders, filterStatus, filterPaymentMethod])
+
+  // Hiển thị tối đa 50 đơn hàng thỏa mãn điều kiện lọc
+  const latestOrders = useMemo(() => filteredOrdersList.slice(0, 50), [filteredOrdersList])
 
   // Lấy dữ liệu gộp giữa order đang chọn và order list để render Modal
   const selectedOrder = useMemo(() => {
@@ -98,7 +112,7 @@ function AdminOrdersPage() {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
       const response = await fetch(`${API_URL}/api/admin/orders/${orderId}/status?status=${newStatus}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -106,16 +120,7 @@ function AdminOrdersPage() {
         body: JSON.stringify({ status: newStatus })
       })
 
-      if (!response.ok) {
-        await fetch(`${API_URL}/api/admin/orders/${orderId}`, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ status: newStatus })
-        })
-      }
+      if (!response.ok) throw new Error('Cập nhật trạng thái thất bại');
 
       setOrders(prevOrders =>
         prevOrders.map(order =>
@@ -158,16 +163,44 @@ function AdminOrdersPage() {
         </article>
 
         <article className="rounded-3xl border border-border bg-slate-50 p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-600">Đơn hiển thị</p>
+          <p className="text-sm font-medium text-slate-600">Đơn thỏa điều kiện</p>
           <strong className="mt-2 block text-3xl font-bold text-ink">
-            {loading ? '...' : latestOrders.length}
+            {loading ? '...' : filteredOrdersList.length}
           </strong>
         </article>
       </section>
 
       {/* KHỐI 3: DANH SÁCH ĐƠN HÀNG DẠNG NGANG (Thêm Dropdown + Nút Xem Chi Tiết) */}
       <section className="rounded-[28px] border border-border bg-white p-6 shadow-sm">
-        <h2 className="text-2xl font-bold text-ink">Danh sách đơn hàng toàn hệ thống</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h2 className="text-2xl font-bold text-ink">Danh sách đơn hàng toàn hệ thống</h2>
+          
+          <div className="flex flex-wrap gap-3">
+            {/* Bộ lọc Phương thức thanh toán */}
+            <select 
+              value={filterPaymentMethod}
+              onChange={(e) => setFilterPaymentMethod(e.target.value)}
+              className="rounded-xl border border-border bg-slate-50 px-4 py-2 text-sm font-semibold text-ink outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 cursor-pointer"
+            >
+              <option value="ALL">Tất cả thanh toán</option>
+              <option value="COD">COD</option>
+              <option value="CARD">CARD</option>
+            </select>
+
+            {/* Bộ lọc Trạng thái */}
+            <select 
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="rounded-xl border border-border bg-slate-50 px-4 py-2 text-sm font-semibold text-ink outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 cursor-pointer"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="PENDING">PENDING</option>
+              <option value="SHIPPING">SHIPPING</option>
+              <option value="COMPLETED">COMPLETED</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+          </div>
+        </div>
 
         <div className="mt-4 space-y-3">
           {loading ? (
@@ -178,6 +211,9 @@ function AdminOrdersPage() {
             latestOrders.map((order, index) => {
               const orderId = order.orderCode || order.id || index + 1
               const status = String(order.status || order.orderStatus || 'PENDING').toUpperCase()
+              const isCard = order.paymentMethod === 'CARD'
+              // Không cho phép thay đổi nếu trạng thái là CANCELLED hoặc nếu là CARD mà chưa SHIPPING
+              const canChange = status !== 'CANCELLED' && (!isCard || status === 'SHIPPING')
               const total = getOrderTotal(order)
 
               return (
@@ -198,18 +234,18 @@ function AdminOrdersPage() {
                     {/* Phần bổ sung Nút và Dropdown hiển thị ngang */}
                     <div className="flex items-center gap-3">
                       <select
-                        disabled={updatingId === order.id}
+                        disabled={updatingId === order.id || !canChange}
                         value={status}
                         onChange={(e) => handleUpdateStatus(order.id, e.target.value)}
                         className={`rounded-full px-3 py-1.5 text-sm font-semibold border outline-none cursor-pointer disabled:opacity-50 ${
                           status === 'COMPLETED' ? 'bg-green-100 text-green-800 border-green-200' :
                           status === 'CANCELLED' ? 'bg-red-100 text-red-800 border-red-200' :
-                          status === 'PROCESSING' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                          status === 'SHIPPING' ? 'bg-sky-100 text-sky-800 border-sky-200' :
                           'bg-amber-100 text-amber-800 border-amber-200'
                         }`}
                       >
-                        <option value="PENDING">PENDING</option>
-                        <option value="PROCESSING">PROCESSING</option>
+                        <option value="PENDING" disabled={isCard}>PENDING</option>
+                        <option value="SHIPPING">SHIPPING</option>
                         <option value="COMPLETED">COMPLETED</option>
                         <option value="CANCELLED">CANCELLED</option>
                       </select>
@@ -267,9 +303,9 @@ function AdminOrdersPage() {
                       <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 border border-red-200">
                         CANCELLED
                       </span>
-                    ) : String(displayOrder.status).toUpperCase() === 'PROCESSING' ? (
-                      <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
-                        PROCESSING
+                    ) : String(displayOrder.status).toUpperCase() === 'SHIPPING' ? (
+                      <span className="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700 border border-sky-200">
+                        SHIPPING
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200">

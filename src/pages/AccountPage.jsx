@@ -450,6 +450,29 @@ function AccountPage() {
     }
   }
 
+  async function handleCancelOrder(orderId) {
+    if (!window.confirm('Bạn có chắc chắn muốn hủy đơn hàng này không?')) return
+    setMessage('')
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+
+    try {
+      const response = await fetch(`${API_URL}/api/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!response.ok) throw new Error('Hủy đơn hàng thất bại')
+
+      setMessage('Đã hủy đơn hàng thành công')
+      
+      const orderData = await getMyOrders(token)
+      setOrders(Array.isArray(orderData) ? orderData : [])
+      setSelectedOrderId(null)
+    } catch (error) {
+      setMessage(error.message || 'Lỗi khi hủy đơn hàng')
+    }
+  }
+
   async function handleAddToCart(product) {
     const productId = getProductId(product)
     if (!productId) {
@@ -761,9 +784,9 @@ function AccountPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setOrderStatusFilter('PROCESSING')}
+                    onClick={() => setOrderStatusFilter('SHIPPING')}
                     className={`rounded-full px-4 py-2 text-sm transition-colors ${
-                      orderStatusFilter === 'PROCESSING' 
+                      orderStatusFilter === 'SHIPPING' 
                         ? 'bg-slate-900 text-white shadow-sm font-semibold' 
                         : 'bg-white border border-border text-slate-600 font-medium hover:bg-slate-50'
                     }`}
@@ -830,9 +853,9 @@ function AccountPage() {
                                 <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 border border-red-200">
                                   CANCELLED
                                 </span>
-                              ) : order.status === 'PROCESSING' ? (
-                                <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
-                                  PROCESSING
+                              ) : order.status === 'SHIPPING' ? (
+                                <span className="inline-flex items-center rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-800 border border-sky-200">
+                                  SHIPPING
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200">
@@ -1066,9 +1089,9 @@ function AccountPage() {
                       <span className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-700 border border-red-200">
                         CANCELLED
                       </span>
-                    ) : displayOrder.status === 'PROCESSING' ? (
-                      <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
-                        PROCESSING
+                    ) : displayOrder.status === 'SHIPPING' ? (
+                      <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-bold bg-sky-100 text-sky-800 border-sky-200">
+                        SHIPPING
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200">
@@ -1221,13 +1244,24 @@ function AccountPage() {
                   {(displayOrder.totalAmount ?? displayOrder.totalPrice ?? displayOrder.total ?? 0).toLocaleString('vi-VN')} đ
                 </strong>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedOrderId(null)}
-                className="rounded-full bg-slate-900 px-6 py-2.5 font-semibold text-white transition hover:bg-slate-800 shadow-sm text-sm"
-              >
-                Đóng lại
-              </button>
+              <div className="flex gap-3">
+                {displayOrder.status === 'PENDING' && (
+                  <button
+                    type="button"
+                    onClick={() => handleCancelOrder(displayOrder.id)}
+                    className="rounded-full border border-red-200 bg-red-50 px-6 py-2.5 text-sm font-bold text-red-600 transition hover:bg-red-100 shadow-sm"
+                  >
+                    Hủy đơn hàng
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrderId(null)}
+                  className="rounded-full bg-slate-900 px-6 py-2.5 font-semibold text-white transition hover:bg-slate-800 shadow-sm text-sm"
+                >
+                  Đóng lại
+                </button>
+              </div>
             </div>
           </div>
         </div>
