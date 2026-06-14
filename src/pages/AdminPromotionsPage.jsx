@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useAuth } from '../contexts/AuthContext';
 
 function AdminPromotionsPage() {
   usePageTitle('Quản lý Khuyến mãi');
 
   // --- 1. KHAI BÁO STATE ---
-  const [activeTab, setActiveTab] = useState('Mã Giảm Giá');
+  const { token } = useAuth();
   const [vouchers, setVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,13 +18,14 @@ function AdminPromotionsPage() {
   // Dữ liệu mặc định của Form
   const initialFormState = {
     code: '',
-    discountType: 'amount', // 'amount' (giảm tiền) hoặc 'percent' (giảm %)
-    discountAmount: '',
-    discountPercent: '',
+    description: '',
+    discountType: 'FIXED', // 'FIXED' hoặc 'PERCENT'
+    discountValue: '',
     minOrderAmount: '',
+    maxDiscountAmount: '',
     usageLimit: '',
-    startDate: '',
-    endDate: '',
+    startAt: '',
+    endAt: '',
     active: true
   };
   const [formData, setFormData] = useState(initialFormState);
@@ -34,8 +36,8 @@ function AdminPromotionsPage() {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8080/api/admin/vouchers', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}/api/admin/vouchers`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -54,8 +56,8 @@ function AdminPromotionsPage() {
   };
 
   useEffect(() => {
-    if (activeTab === 'Mã Giảm Giá') fetchVouchers();
-  }, [activeTab]);
+    if (token) fetchVouchers();
+  }, [token]);
 
   // --- 3. LOGIC MỞ ĐÓNG MODAL ---
   // Mở popup (truyền voucher vào nếu là edit, không truyền = add mới)
@@ -64,14 +66,14 @@ function AdminPromotionsPage() {
       setEditingId(voucher.id);
       setFormData({
         code: voucher.code || '',
-        discountType: voucher.discountPercent ? 'percent' : 'amount',
-        discountAmount: voucher.discountAmount || '',
-        discountPercent: voucher.discountPercent || '',
+        description: voucher.description || '',
+        discountType: voucher.discountType || 'FIXED',
+        discountValue: voucher.discountValue || '',
         minOrderAmount: voucher.minOrderAmount || '',
+        maxDiscountAmount: voucher.maxDiscountAmount || '',
         usageLimit: voucher.usageLimit || '',
-        // Format ngày tháng chuẩn của thẻ <input type="datetime-local"> là YYYY-MM-DDThh:mm
-        startDate: voucher.startDate ? voucher.startDate.substring(0, 16) : '',
-        endDate: voucher.endDate ? voucher.endDate.substring(0, 16) : '',
+        startAt: voucher.startAt ? voucher.startAt.substring(0, 16) : '',
+        endAt: voucher.endAt ? voucher.endAt.substring(0, 16) : '',
         active: voucher.active !== false
       });
     } else {
@@ -99,42 +101,32 @@ function AdminPromotionsPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
       const url = editingId 
-        ? `http://localhost:8080/api/admin/vouchers/${editingId}` 
-        : 'http://localhost:8080/api/admin/vouchers';
+        ? `${API_URL}/api/admin/vouchers/${editingId}` 
+        : `${API_URL}/api/admin/vouchers`;
       const method = editingId ? 'PUT' : 'POST';
 
       // Sao chép dữ liệu từ form ra payload
       const payload = { ...formData };
       
-      // 👉 FIX LỖI 1: Thay vì truyền null, truyền số 0 đối với trường không chọn 
-      // để Backend kiểu dữ liệu nguyên thủy (primitive) không bị sập lỗi ép kiểu.
-      if (payload.discountType === 'percent') {
-        payload.discountAmount = 0;
-        payload.discountPercent = Number(payload.discountPercent);
-      } else {
-        payload.discountPercent = 0;
-        payload.discountAmount = Number(payload.discountAmount);
-      }
-      delete payload.discountType; // Loại bỏ trường bổ trợ giao diện
-
       // Ép chuẩn kiểu số cho các trường số học khác
+      payload.discountValue = Number(payload.discountValue);
       payload.minOrderAmount = payload.minOrderAmount ? Number(payload.minOrderAmount) : 0;
+      payload.maxDiscountAmount = payload.maxDiscountAmount ? Number(payload.maxDiscountAmount) : null;
       payload.usageLimit = payload.usageLimit ? Number(payload.usageLimit) : null;
       
-      // 👉 FIX LỖI 2: Loại bỏ ký tự 'T' thay bằng khoảng trắng ' ' 
-      // và thêm đuôi giây ':00' cho chuẩn chỉ với format yyyy-MM-dd HH:mm:ss của Spring Boot
-      if (payload.startDate) {
-        payload.startDate = payload.startDate.replace('T', ' ') + ':00';
+      // Định dạng ngày tháng cho LocalDateTime Spring Boot
+      if (payload.startAt) {
+        payload.startAt = payload.startAt.replace('T', ' ') + ':00';
       } else {
-        payload.startDate = null;
+        payload.startAt = null;
       }
       
-      if (payload.endDate) {
-        payload.endDate = payload.endDate.replace('T', ' ') + ':00';
+      if (payload.endAt) {
+        payload.endAt = payload.endAt.replace('T', ' ') + ':00';
       } else {
-        payload.endDate = null;
+        payload.endAt = null;
       }
 
       const response = await fetch(url, {
@@ -163,12 +155,31 @@ function AdminPromotionsPage() {
     }
   };
 
+  // --- 5. LOGIC BẬT/TẮT NHANH (Sử dụng PATCH API mới) ---
+  const handleToggleActive = async (id, currentStatus) => {
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}/api/admin/vouchers/${id}/active?active=${!currentStatus}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        setVouchers(vouchers.map((v) => (v.id === id ? { ...v, active: !currentStatus } : v)));
+      } else {
+        alert('Không thể cập nhật trạng thái Voucher');
+      }
+    } catch (err) {
+      console.error('Lỗi chuyển trạng thái:', err);
+    }
+  };
+
   // --- 5. LOGIC XÓA VOUCHER ---
   const handleDelete = async (id) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa mã giảm giá này không?')) return;
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8080/api/admin/vouchers/${id}`, {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      const response = await fetch(`${API_URL}/api/admin/vouchers/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -185,9 +196,8 @@ function AdminPromotionsPage() {
 
   // --- CÁC HÀM HELPER HIỂN THỊ UI ---
   const formatDiscountValue = (voucher) => {
-    if (voucher.discountPercent) return `${voucher.discountPercent}%`;
-    if (voucher.discountAmount) return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(voucher.discountAmount);
-    return '0đ';
+    if (voucher.discountType === 'PERCENT') return `${voucher.discountValue}%`;
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(voucher.discountValue || 0);
   };
 
   const formatDate = (dateString) => {
@@ -198,7 +208,7 @@ function AdminPromotionsPage() {
 
   const getStatusUI = (voucher) => {
     if (voucher.active === false) return <span className="inline-block rounded-full px-3 py-1 text-xs font-medium bg-red-100 text-red-800">Đã khóa</span>;
-    if (voucher.endDate && new Date(voucher.endDate) < new Date()) return <span className="inline-block rounded-full px-3 py-1 text-xs font-medium bg-gray-100 text-gray-800">Hết hạn</span>;
+    if (voucher.endAt && new Date(voucher.endAt) < new Date()) return <span className="inline-block rounded-full px-3 py-1 text-xs font-medium bg-gray-100 text-gray-800">Hết hạn</span>;
     return <span className="inline-block rounded-full px-3 py-1 text-xs font-medium bg-green-100 text-green-800">Hoạt động</span>;
   };
 
@@ -219,29 +229,12 @@ function AdminPromotionsPage() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
-        {['Mã Giảm Giá', 'Flash Sale', 'Banner'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium transition ${
-              activeTab === tab ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-900 border-b-2 border-transparent'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
       {/* Content Area */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         {loading ? (
           <div className="flex justify-center items-center p-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
         ) : error ? (
           <div className="p-10 text-center text-red-500"><p>{error}</p><button onClick={fetchVouchers} className="mt-4 text-blue-600 hover:underline">Thử lại</button></div>
-        ) : activeTab !== 'Mã Giảm Giá' ? (
-          <div className="p-10 text-center text-gray-500">Tính năng đang được phát triển...</div>
         ) : vouchers.length === 0 ? (
           <div className="p-10 text-center text-gray-500">Chưa có mã giảm giá nào trong hệ thống.</div>
         ) : (
@@ -266,11 +259,19 @@ function AdminPromotionsPage() {
                       <div className="text-xs text-gray-500">Đơn tối thiểu: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(voucher.minOrderAmount || 0)}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
-                      <div>Từ: {formatDate(voucher.startDate)}</div>
-                      <div>Đến: {formatDate(voucher.endDate)}</div>
+                      <div>Từ: {formatDate(voucher.startAt)}</div>
+                      <div>Đến: {formatDate(voucher.endAt)}</div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">{voucher.usedCount || 0} / {voucher.usageLimit ? voucher.usageLimit : '∞'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">{getStatusUI(voucher)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button 
+                        onClick={() => handleToggleActive(voucher.id, voucher.active)}
+                        title="Nhấn để thay đổi trạng thái"
+                        className="transition-opacity hover:opacity-80"
+                      >
+                        {getStatusUI(voucher)}
+                      </button>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-3">
                         <button onClick={() => handleOpenModal(voucher)} className="text-blue-600 hover:text-blue-800 transition" title="Chỉnh sửa">
@@ -314,42 +315,50 @@ function AdminPromotionsPage() {
                   </div>
                 </div>
 
+                {/* Mô tả */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả chương trình</label>
+                  <textarea name="description" value={formData.description} onChange={handleChange} rows="2" placeholder="VD: Giảm giá mùa hè cho tất cả đơn hàng..." className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"/>
+                </div>
+
                 {/* Dòng 2 */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Loại giảm giá</label>
-                    <select name="discountType" value={formData.discountType} onChange={handleChange} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white">
-                      <option value="amount">Giảm theo Số tiền (VND)</option>
-                      <option value="percent">Giảm theo Phần trăm (%)</option>
+                    <select name="discountType" value={formData.discountType} onChange={handleChange} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white text-sm">
+                      <option value="FIXED">Giảm cố định (VND)</option>
+                      <option value="PERCENT">Giảm theo Phần trăm (%)</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {formData.discountType === 'amount' ? 'Số tiền giảm (VND) *' : 'Phần trăm giảm (%) *'}
+                      Giá trị giảm *
                     </label>
-                    {formData.discountType === 'amount' ? (
-                      <input type="number" name="discountAmount" value={formData.discountAmount} onChange={handleChange} required min="1" placeholder="VD: 50000" className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
-                    ) : (
-                      <input type="number" name="discountPercent" value={formData.discountPercent} onChange={handleChange} required min="1" max="100" placeholder="VD: 10" className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
-                    )}
+                    <input type="number" name="discountValue" value={formData.discountValue} onChange={handleChange} required min="1" placeholder={formData.discountType === 'FIXED' ? 'VD: 50000' : 'VD: 10'} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
                   </div>
                 </div>
 
                 {/* Dòng 3 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Giá trị đơn hàng tối thiểu (VND)</label>
-                  <input type="number" name="minOrderAmount" value={formData.minOrderAmount} onChange={handleChange} min="0" placeholder="VD: 200000" className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Đơn tối thiểu (VND)</label>
+                    <input type="number" name="minOrderAmount" value={formData.minOrderAmount} onChange={handleChange} min="0" placeholder="VD: 200000" className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Giảm tối đa (VND)</label>
+                    <input type="number" name="maxDiscountAmount" value={formData.maxDiscountAmount} onChange={handleChange} min="0" placeholder="Để trống = Không giới hạn" disabled={formData.discountType === 'FIXED'} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"/>
+                  </div>
                 </div>
 
                 {/* Dòng 4 */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ngày bắt đầu</label>
-                    <input type="datetime-local" name="startDate" value={formData.startDate} onChange={handleChange} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                    <input type="datetime-local" name="startAt" value={formData.startAt} onChange={handleChange} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
-                    <input type="datetime-local" name="endDate" value={formData.endDate} onChange={handleChange} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
+                    <input type="datetime-local" name="endAt" value={formData.endAt} onChange={handleChange} className="w-full rounded-lg border border-gray-300 px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"/>
                   </div>
                 </div>
 

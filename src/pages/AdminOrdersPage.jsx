@@ -438,6 +438,30 @@ function AdminOrdersPage() {
                   })()}
                 </div>
               </div>
+
+              {/* TÓM TẮT THANH TOÁN CHI TIẾT */}
+              <div className="rounded-2xl border border-border bg-slate-50 p-4 space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500 font-medium">Tạm tính:</span>
+                  <span className="font-bold text-ink">{formatOrderMoney(displayOrder.subTotal || 0)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500 font-medium">Phí vận chuyển:</span>
+                  <span className="font-bold text-ink">{formatOrderMoney(displayOrder.shippingFee || 0)}</span>
+                </div>
+                {(displayOrder.discountAmount > 0 || displayOrder.voucherCode) && (
+                  <div className="flex justify-between text-sm text-sky-700">
+                    <span className="font-medium">Giảm giá {displayOrder.voucherCode ? `(Mã: ${displayOrder.voucherCode})` : ''}:</span>
+                    <span className="font-bold">- {formatOrderMoney(displayOrder.discountAmount || 0)}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
+                  <span className="text-base font-bold text-ink uppercase">Tổng cộng:</span>
+                  <strong className="text-xl font-bold text-red-600">
+                    {formatOrderMoney(displayOrder.totalAmount || 0)}
+                  </strong>
+                </div>
+              </div>
             </div>
 
             <div className="border-t border-border bg-slate-50 px-6 py-4 flex items-center justify-between">

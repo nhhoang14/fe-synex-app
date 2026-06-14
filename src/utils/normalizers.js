@@ -1,5 +1,6 @@
 export function getProductId(product) {
-  return product?.id || product?.productId || product?.product?.id || ''
+  // Ưu tiên lấy Catalog Product ID để dẫn người dùng về đúng trang chi tiết sản phẩm
+  return product?.productId || product?.product?.id || product?.id || ''
 }
 
 export function getProductName(product) {
@@ -57,7 +58,8 @@ export function getCartItems(cart) {
 }
 
 export function getCartItemProduct(item) {
-  return item?.product || item
+  // Dữ liệu hiển thị (Tên, Ảnh) thường nằm trong variant hoặc product object lồng bên trong
+  return item?.variant?.product || item?.variant || item?.product || item?.productDTO || item
 }
 
 export function getCartItemQuantity(item) {

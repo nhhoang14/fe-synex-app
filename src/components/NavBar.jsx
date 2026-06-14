@@ -144,21 +144,23 @@ function NavBar() {
   }
 
   return (
-    <header className="sticky top-0 z-30 grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
-      <Link
-        to={ROUTES.HOME}
-        className="ml-1 inline-flex items-center gap-2 text-2xl font-bold tracking-tight text-ink no-underline font-heading"
-      >
-        <span
-          className="material-symbols-outlined text-[28px] text-blue-500"
-          aria-hidden="true"
+    <header className="sticky top-0 z-30 grid grid-cols-[1fr_auto_1fr] items-center gap-4 border-b border-border bg-white/90 px-4 py-3 backdrop-blur-md sm:px-6">
+      <div className="flex items-center justify-start">
+        <Link
+          to={ROUTES.HOME}
+          className="ml-1 inline-flex items-center gap-2 text-2xl font-bold tracking-tight text-ink no-underline font-heading"
         >
-          automation
-        </span>
-        <span>{APP_NAME}</span>
-      </Link>
+          <span
+            className="material-symbols-outlined text-[28px] text-blue-500"
+            aria-hidden="true"
+          >
+            automation
+          </span>
+          <span>{APP_NAME}</span>
+        </Link>
+      </div>
 
-      <nav className="flex flex-wrap justify-center gap-2">
+      <nav className="flex flex-wrap items-center justify-center gap-2">
         {NAV_ITEMS.map(({ to, label }) => (
           <NavLink
             key={to}

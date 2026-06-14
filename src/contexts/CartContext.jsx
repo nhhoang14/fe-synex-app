@@ -57,20 +57,25 @@ export function CartProvider({ children }) {
 
   const addToCart = useCallback(async (quantity = 1, variantId = null) => {
     if (!token) throw new Error('Vui lòng đăng nhập trước khi mua hàng')
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
-    await addProductToCart(token, { quantity, variantId })
+    // Gọi trực tiếp theo api mới: POST /api/cart/add?variantId=...&quantity=...
+    await fetch(`${API_URL}/api/cart/add?variantId=${variantId || ''}&quantity=${quantity}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
     return await fetchCart()
   }, [token, fetchCart])
 
-  const increase = useCallback(async (productId, amount = 1) => {
+  const increase = useCallback(async (cartItemId, amount = 1) => {
     if (!token) return null
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
-    // ĐÃ SỬA: Cập nhật giao diện tăng số lượng ngay lập tức để không bị kẹt
     setCart(prev => {
       if (!Array.isArray(prev)) return prev;
       return prev.map(item => {
-        const prodId = String(getProductId(getCartItemProduct(item)));
-        if (prodId === String(productId)) {
+        if (String(item.id) === String(cartItemId)) {
           return { ...item, quantity: getCartItemQuantity(item) + amount };
         }
         return item;
@@ -78,21 +83,25 @@ export function CartProvider({ children }) {
     });
 
     try {
-      await increaseCartItem(token, productId, amount)
+      // CẬP NHẬT: cartItemId là PathVariable theo API mới
+      await fetch(`${API_URL}/api/cart/items/${cartItemId}/increase?amount=${amount}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      await fetchCart()
     } catch (error) {
-      await fetchCart() // Nếu backend lỗi thì tải lại
+      await fetchCart()
     }
   }, [token, fetchCart])
 
-  const decrease = useCallback(async (productId, amount = 1) => {
+  const decrease = useCallback(async (cartItemId, amount = 1) => {
     if (!token) return null
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
-    // ĐÃ SỬA: Cập nhật giao diện giảm số lượng ngay lập tức
     setCart(prev => {
       if (!Array.isArray(prev)) return prev;
       return prev.map(item => {
-        const prodId = String(getProductId(getCartItemProduct(item)));
-        if (prodId === String(productId)) {
+        if (String(item.id) === String(cartItemId)) {
           return { ...item, quantity: Math.max(1, getCartItemQuantity(item) - amount) };
         }
         return item;
@@ -100,14 +109,20 @@ export function CartProvider({ children }) {
     });
 
     try {
-      await decreaseCartItem(token, productId, amount)
+      // CẬP NHẬT: cartItemId là PathVariable theo API mới
+      await fetch(`${API_URL}/api/cart/items/${cartItemId}/decrease?amount=${amount}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      await fetchCart()
     } catch (error) {
       await fetchCart()
     }
   }, [token, fetchCart])
 
-  const remove = useCallback(async (productId) => {
+  const remove = useCallback(async (cartItemId) => {
     if (!token) return null
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
     const previousCart = cart
 
@@ -116,15 +131,13 @@ export function CartProvider({ children }) {
       
       if (Array.isArray(currentCart)) {
         return currentCart.filter((item) => {
-          const itemProductId = getProductId(getCartItemProduct(item))
-          return String(itemProductId) !== String(productId)
+          return String(item.id) !== String(cartItemId)
         })
       }
 
       const currentItems = getCartItems(currentCart)
       const nextItems = currentItems.filter((item) => {
-        const itemProductId = getProductId(getCartItemProduct(item))
-        return String(itemProductId) !== String(productId)
+        return String(item.id) !== String(cartItemId)
       })
 
       if (Array.isArray(currentCart.items)) return { ...currentCart, items: nextItems }
@@ -134,7 +147,11 @@ export function CartProvider({ children }) {
     })
 
     try {
-      await removeCartItem(token, productId)
+      // CẬP NHẬT: cartItemId là PathVariable theo API mới
+      await fetch(`${API_URL}/api/cart/items/${cartItemId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      })
       return await fetchCart() 
     } catch (error) {
       setCart(previousCart) 

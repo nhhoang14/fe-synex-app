@@ -10,6 +10,7 @@ import {
   getCartItemQuantity,
   getProductImage,
   getProductId,
+  normalizeImageUrl,
   getProductName,
   getProductPrice,
 } from '../utils/normalizers'
@@ -24,28 +25,70 @@ function CartPage() {
   const [message, setMessage] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState([])
   const [promoCode, setPromoCode] = useState('')
-  const [discountAmount, setDiscountAmount] = useState(0)
+  const [appliedVoucher, setAppliedVoucher] = useState(null)
 
   const allItemIds = useMemo(() => {
-    return items.map(item => item.id || getProductId(getCartItemProduct(item)))
+    return items.map(item => item.id).filter(Boolean)
   }, [items])
 
   const selectedTotalAmount = useMemo(() => {
     return items.reduce((total, item) => {
-      const product = getCartItemProduct(item)
-      const productId = getProductId(product)
-      const uniqueId = item.id || productId
+      const uniqueId = item.id
 
       if (selectedItemIds.includes(uniqueId)) {
         const quantity = getCartItemQuantity(item)
-        const price = getProductPrice(product)
+        const price = getProductPrice(item)
         return total + (price * quantity)
       }
       return total
     }, 0)
   }, [items, selectedItemIds])
 
+  // Lấy số tiền giảm giá trực tiếp từ kết quả validate của API (VoucherValidationResponse)
+  const discountAmount = useMemo(() => {
+    // Chỉ tính giảm giá nếu voucher được server xác nhận là valid
+    return (appliedVoucher && appliedVoucher.valid) ? Number(appliedVoucher.discountAmount || 0) : 0
+  }, [appliedVoucher])
+
   const finalTotal = Math.max(0, selectedTotalAmount - discountAmount)
+
+  // Tự động gọi API kiểm tra lại Voucher khi tổng tiền được chọn thay đổi
+  useEffect(() => {
+    const reValidateVoucher = async () => {
+      // Chỉ thực hiện nếu đang có mã và có sản phẩm được chọn
+      if (appliedVoucher?.code && selectedTotalAmount > 0) {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+          const response = await fetch(
+            `${API_URL}/api/vouchers/validate?code=${appliedVoucher.code}&orderAmount=${selectedTotalAmount}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          if (response.ok) {
+            const result = await response.json()
+            // Cập nhật kết quả mới (bao gồm trạng thái valid và số tiền giảm mới)
+            setAppliedVoucher(result)
+          } else {
+            // Nếu Backend báo lỗi (ví dụ: đơn hàng không đủ giá tối thiểu), 
+            // ta cập nhật voucher hiện tại thành không hợp lệ để UI hiển thị đúng
+            setAppliedVoucher(prev => prev ? { 
+              ...prev, 
+              valid: false, 
+              discountAmount: 0,
+              message: "Đơn hàng không còn đủ điều kiện áp dụng mã này."
+            } : null)
+          }
+        } catch (error) {
+          console.error('Lỗi kiểm tra lại voucher:', error)
+        }
+      } else if (selectedTotalAmount === 0 && appliedVoucher) {
+        // Nếu bỏ chọn tất cả sản phẩm thì gỡ bỏ voucher
+        setAppliedVoucher(null)
+        setPromoCode('')
+      }
+    }
+
+    reValidateVoucher()
+  }, [selectedTotalAmount, token, appliedVoucher?.code])
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -69,53 +112,67 @@ function CartPage() {
     }
   }
 
-  function handleApplyPromoCode() {
+  async function handleApplyPromoCode() {
     if (!promoCode.trim()) {
       alert('Vui lòng nhập mã khuyến mãi!')
       return
     }
-    if (promoCode.trim().toUpperCase() === 'SYNEX10') {
-      const discount = Math.min(selectedTotalAmount * 0.1, 500000)
-      setDiscountAmount(discount)
-      alert('Áp dụng mã khuyến mãi thành công!')
-    } else {
-      setDiscountAmount(0)
-      alert('Mã khuyến mãi không hợp lệ hoặc đã hết hạn.')
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const response = await fetch(`${API_URL}/api/vouchers/validate?code=${promoCode.trim().toUpperCase()}&orderAmount=${selectedTotalAmount}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!response.ok) throw new Error('Mã giảm giá không hợp lệ hoặc không đủ điều kiện.')
+      const voucher = await response.json()
+      
+      setAppliedVoucher(voucher)
+      
+      if (voucher.valid) {
+        alert('Áp dụng mã khuyến mãi thành công!')
+      }
+    } catch (error) {
+      setAppliedVoucher(null)
+      alert(error.message)
     }
   }
 
-  async function handleIncrease(productId) {
+  function handleRemovePromoCode() {
+    setPromoCode('')
+    setAppliedVoucher(null)
+    alert('Đã bỏ áp dụng mã khuyến mãi.')
+  }
+
+  async function handleIncrease(cartItemId) {
     if (!isAuthenticated) return
     try {
-      await increase(productId, 1)
-      await fetchCart()
+      await increase(cartItemId, 1)
     } catch (error) {
       setMessage(error.message)
     }
   }
 
-  async function handleDecrease(productId) {
+  async function handleDecrease(cartItemId) {
     if (!isAuthenticated) return
     try {
-      await decrease(productId, 1)
-      await fetchCart()
+      await decrease(cartItemId, 1)
     } catch (error) {
       setMessage(error.message)
     }
   }
 
-  async function handleRemove(productId) {
+  async function handleRemove(cartItemId) {
     if (!isAuthenticated) return
     try {
-      await remove(productId)
-      await fetchCart()
+      await remove(cartItemId)
     } catch (error) {
       setMessage(error.message)
     }
   }
 
   // GỌI API KIỂM TRA TỒN KHO TRƯỚC KHI SANG TRANG CHECKOUT
-async function handleProceedToCheckout() {
+  async function handleProceedToCheckout() {
     if (!isAuthenticated) {
       navigate(ROUTES.LOGIN)
       return
@@ -140,7 +197,7 @@ async function handleProceedToCheckout() {
 
       // Đủ kho -> Điều hướng và mang theo mảng sản phẩm đã chọn
       navigate(ROUTES.CHECKOUT, { 
-        state: { selectedItemIds, discountAmount } 
+        state: { selectedItemIds, discountAmount, voucherCode: appliedVoucher?.code } 
       })
     } catch (error) {
       setMessage(error.message || 'Sản phẩm không đủ số lượng trong kho.')
@@ -189,7 +246,7 @@ async function handleProceedToCheckout() {
                     <th className="px-4 py-3 w-12 text-center">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 cursor-pointer rounded border-gray-300 text-slate-900 focus:ring-slate-900"
+                        className="h-6 w-6 cursor-pointer rounded border-gray-300 text-slate-900 focus:ring-slate-900"
                         checked={selectedItemIds.length === allItemIds.length && allItemIds.length > 0}
                         onChange={handleSelectAll}
                         title="Chọn tất cả"
@@ -204,19 +261,29 @@ async function handleProceedToCheckout() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {items.map((item) => {
+                    // Truy xuất thông tin Product (Catalog) thông qua variant trong CartItem
                     const product = getCartItemProduct(item)
+                    
+                    // Lấy productId chính xác của Catalog để làm Link chuyển trang
                     const productId = getProductId(product)
-                    const quantity = getCartItemQuantity(item)
-                    const price = getProductPrice(product)
                     const productName = getProductName(product)
-                    const uniqueId = item.id || productId
+                    
+                    const quantity = getCartItemQuantity(item)
+                    const price = getProductPrice(item)
+                    
+                    // Ưu tiên hiển thị ảnh của riêng biến thể đó nếu có
+                    const displayImage = item.variant?.imageUrl 
+                      ? normalizeImageUrl(item.variant.imageUrl) 
+                      : getProductImage(product)
+
+                    const uniqueId = item.id
 
                     return (
-                      <tr key={uniqueId} className="align-top">
-                        <td className="px-4 py-4 align-middle text-center">
+                      <tr key={uniqueId} className="align-middle">
+                        <td className="px-4 py-4 text-center">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 cursor-pointer rounded border-gray-300 text-slate-900 focus:ring-slate-900"
+                            className="h-6 w-6 cursor-pointer rounded border-gray-300 text-slate-900 focus:ring-slate-900"
                             checked={selectedItemIds.includes(uniqueId)}
                             onChange={() => handleSelect(uniqueId)}
                           />
@@ -227,16 +294,24 @@ async function handleProceedToCheckout() {
                             className="flex items-center gap-3 group transition-opacity hover:opacity-80"
                           >
                             <img
-                              src={getProductImage(product)}
+                              src={displayImage || getProductImage(product)}
                               alt={productName}
                               className="h-14 w-14 rounded-2xl object-cover shrink-0"
                             />
-                            <span 
-                              className="font-medium text-ink group-hover:text-sky-700 transition-colors line-clamp-2"
-                              title={productName}
-                            >
-                              {productName}
-                            </span>
+                            <div className="flex flex-col min-w-0">
+                              <span 
+                                className="font-bold text-ink group-hover:text-sky-700 transition-colors line-clamp-2"
+                                title={productName}
+                              >
+                                {productName}
+                              </span>
+                              {/* HIỂN THỊ CÁC THUỘC TÍNH ĐÃ CHỌN (VD: Màu sắc: Trắng / Dung lượng: 256GB) */}
+                              {item.variant?.attributes && item.variant.attributes.length > 0 && (
+                                <p className="mt-0.5 text-xs text-slate-500 font-medium italic">
+                                  {item.variant.attributes.map(a => a.attributeValue).join(' / ')}
+                                </p>
+                              )}
+                            </div>
                           </Link>
                         </td>
                         <td className="px-4 py-4 text-slate-700">{formatCurrency(price)}</td>
@@ -245,7 +320,7 @@ async function handleProceedToCheckout() {
                             <button
                               type="button"
                               className="grid h-9 w-9 place-items-center rounded-full bg-white font-semibold text-ink transition hover:bg-slate-100"
-                              onClick={() => handleDecrease(productId)}
+                              onClick={() => handleDecrease(uniqueId)}
                             >
                               -
                             </button>
@@ -253,7 +328,7 @@ async function handleProceedToCheckout() {
                             <button
                               type="button"
                               className="grid h-9 w-9 place-items-center rounded-full bg-white font-semibold text-ink transition hover:bg-slate-100"
-                              onClick={() => handleIncrease(productId)}
+                              onClick={() => handleIncrease(uniqueId)}
                             >
                               +
                             </button>
@@ -265,7 +340,7 @@ async function handleProceedToCheckout() {
                             <button
                               type="button"
                               className="rounded-full border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-600 transition hover:bg-red-100"
-                              onClick={() => handleRemove(productId)}
+                              onClick={() => handleRemove(uniqueId)}
                             >
                               Xóa
                             </button>
@@ -284,25 +359,54 @@ async function handleProceedToCheckout() {
           <h3 className="text-2xl font-bold text-ink font-heading">Tóm tắt đơn hàng</h3>
 
           <div className="mt-6">
-            <label className="text-sm font-bold text-ink block mb-3">
-              Nhập mã khuyến mãi
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value)}
-                placeholder="Nhập mã..."
-                className="w-full min-w-0 flex-1 rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-              />
-              <button
-                type="button"
-                onClick={handleApplyPromoCode}
-                className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 whitespace-nowrap"
-              >
-                Áp dụng
-              </button>
-            </div>
+            {appliedVoucher ? (
+              <div className={`rounded-xl border p-3 flex flex-col gap-1 transition-all ${
+                appliedVoucher.valid 
+                  ? 'border-green-200 bg-green-50' 
+                  : 'border-slate-300 bg-slate-100 grayscale'
+              }`}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className={`font-bold text-sm ${appliedVoucher.valid ? 'text-green-700' : 'text-slate-500'}`}>
+                    Mã: {appliedVoucher.code}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRemovePromoCode}
+                    className="rounded-full bg-white px-3 py-1 text-xs font-bold text-red-600 hover:bg-red-100 transition"
+                  >
+                    Bỏ áp dụng
+                  </button>
+                </div>
+                
+                {!appliedVoucher.valid && (
+                  <p className="text-[11px] font-bold text-red-500 italic">
+                    {appliedVoucher.message || 'Không đủ điều kiện áp dụng'}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <>
+                <label className="text-sm font-bold text-ink block mb-3">
+                  Nhập mã khuyến mãi
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    placeholder="Nhập mã..."
+                    className="w-full min-w-0 flex-1 rounded-xl border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyPromoCode}
+                    className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 whitespace-nowrap"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           <hr className="my-5 border-dashed border-border" />

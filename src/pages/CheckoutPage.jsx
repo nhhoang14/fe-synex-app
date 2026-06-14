@@ -25,13 +25,22 @@ function CheckoutPage() {
   const navigate = useNavigate()
 
   const selectedItemIds = location.state?.selectedItemIds || []
-  const discountAmount = location.state?.discountAmount || 0
+  const initialDiscountAmount = location.state?.discountAmount || 0
+  const initialVoucherCode = location.state?.voucherCode || ''
+
+  const SHIPPING_FEE = 15000
 
   const [addresses, setAddresses] = useState([])
   const [message, setMessage] = useState('')
   const [placingOrder, setPlacingOrder] = useState(false)
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [selectedAddressId, setSelectedAddressId] = useState('')
+
+  const [promoCode, setPromoCode] = useState(initialVoucherCode)
+  // Khởi tạo appliedVoucher từ dữ liệu ban đầu để tránh việc bị reset hoặc "dính" giá trị cũ khi xóa
+  const [appliedVoucher, setAppliedVoucher] = useState(
+    initialVoucherCode ? { code: initialVoucherCode, discountAmount: initialDiscountAmount, valid: true } : null
+  )
 
   // --- QUẢN LÝ THANH TOÁN QR ---
   const [qrOrder, setQrOrder] = useState(null) // Lưu thông tin đơn hàng để sinh QR {id, code, amount}
@@ -55,6 +64,36 @@ function CheckoutPage() {
 
   const [note, setNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHODS[0].value)
+
+  // --- LOGIC TÍNH TOÁN GIÁ TRỊ (DERIVED STATE) ---
+  const selectedItems = useMemo(() => {
+    return items.filter((item) => {
+      const product = getCartItemProduct(item)
+      const uniqueId = item.id || getProductId(product)
+      return selectedItemIds.includes(uniqueId)
+    })
+  }, [items, selectedItemIds])
+
+  const subtotal = useMemo(() => {
+    return selectedItems.reduce((sum, item) => {
+      const product = getCartItemProduct(item)
+      return sum + getCartItemQuantity(item) * getProductPrice(product)
+    }, 0)
+  }, [selectedItems])
+
+  const discountAmount = useMemo(() => {
+    // Tiền giảm giá hoàn toàn phụ thuộc vào trạng thái appliedVoucher hiện tại
+    return (appliedVoucher && appliedVoucher.valid) ? Number(appliedVoucher.discountAmount || 0) : 0
+  }, [appliedVoucher])
+
+  const finalTotal = Math.max(0, subtotal + SHIPPING_FEE - discountAmount)
+
+  const activeAddress = useMemo(() => {
+    if (selectedAddressId) {
+      return addresses.find(a => a.id === selectedAddressId) || null
+    }
+    return null
+  }, [selectedAddressId, addresses])
 
   useEffect(() => {
     if (selectedItemIds.length === 0) {
@@ -157,6 +196,57 @@ function CheckoutPage() {
     }
     return () => clearInterval(interval)
   }, [qrOrder, timeLeft, token, fetchCart])
+
+  // Logic Voucher
+  // Tự động gọi API kiểm tra lại Voucher khi subtotal thay đổi (do cập nhật giỏ hàng hoặc giá)
+  useEffect(() => {
+    const reValidate = async () => {
+      const codeToUse = appliedVoucher?.code
+      if (codeToUse && subtotal > 0) {
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+          const response = await fetch(
+            `${API_URL}/api/vouchers/validate?code=${codeToUse}&orderAmount=${subtotal}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          )
+          if (response.ok) {
+            const result = await response.json()
+            setAppliedVoucher(result)
+          }
+        } catch (error) {
+          console.error('Lỗi kiểm tra voucher tại Checkout:', error)
+        }
+      }
+    }
+
+    reValidate()
+  }, [subtotal, token, appliedVoucher?.code])
+
+  async function handleApplyPromoCode(codeToApply = promoCode, showAlert = true) {
+    if (!codeToApply.trim()) {
+      if (showAlert) alert('Vui lòng nhập mã khuyến mãi!')
+      return
+    }
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const response = await fetch(
+        `${API_URL}/api/vouchers/validate?code=${codeToApply.trim().toUpperCase()}&orderAmount=${subtotal}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      if (!response.ok) throw new Error('Mã giảm giá không hợp lệ hoặc không đủ điều kiện.')
+      const result = await response.json()
+      
+      setAppliedVoucher(result)
+      if (showAlert && result.valid) {
+        alert('Áp dụng mã khuyến mãi thành công!')
+      }
+    } catch (error) {
+      setAppliedVoucher(null)
+      if (showAlert) alert(error.message)
+    }
+  }
 
   const handleOpenAddModal = () => {
     if (addresses.length >= 3) {
@@ -270,30 +360,6 @@ function CheckoutPage() {
       }
     }
 
-  const selectedItems = useMemo(() => {
-    return items.filter((item) => {
-      const product = getCartItemProduct(item)
-      const uniqueId = item.id || getProductId(product)
-      return selectedItemIds.includes(uniqueId)
-    })
-  }, [items, selectedItemIds])
-
-  const subtotal = useMemo(() => {
-    return selectedItems.reduce((sum, item) => {
-      const product = getCartItemProduct(item)
-      return sum + getCartItemQuantity(item) * getProductPrice(product)
-    }, 0)
-  }, [selectedItems])
-
-  const finalTotal = Math.max(0, subtotal - discountAmount)
-
-  const activeAddress = useMemo(() => {
-    if (selectedAddressId) {
-      return addresses.find(a => a.id === selectedAddressId) || null
-    }
-    return null
-  }, [selectedAddressId, addresses])
-
   async function handleSubmitCheckout(event) {
     event.preventDefault()
     setMessage('')
@@ -328,11 +394,11 @@ function CheckoutPage() {
       }
 
       const payload = {
+        shippingAddressId: Number(selectedAddressId),
         paymentMethod,
-        cartItemIds: selectedItemIds, 
-        discountAmount,
-        note,
-        shippingAddressId: Number(selectedAddressId) 
+        shippingNotes: note,
+        voucherCode: appliedVoucher?.code, 
+        selectedCartItemIds: selectedItemIds
       }
 
       // GỌI API TẠO ĐƠN
@@ -348,7 +414,8 @@ function CheckoutPage() {
         setQrOrder({
           id: response.id,
           code: returnedCode,
-          amount: finalTotal
+          amount: finalTotal,
+          voucherCode: appliedVoucher?.code 
         })
         setTimeLeft(1200) // Reset 20 phút
       } else {
@@ -413,7 +480,7 @@ function CheckoutPage() {
                             name="address" 
                             checked={selectedAddressId === addr.id} 
                             onChange={() => setSelectedAddressId(addr.id)} 
-                            className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 transition" 
+                            className="h-6 w-6 text-sky-600 focus:ring-sky-500 border-gray-300 transition cursor-pointer" 
                           />
                         </div>
                         <div className="flex-1">
@@ -559,15 +626,63 @@ function CheckoutPage() {
 
           <div className="space-y-3 text-slate-700 font-medium">
             <p className="flex items-center justify-between">
-              <span>Đơn hàng</span>
+              <span>Tạm tính</span>
               <strong>{formatCurrency(subtotal)}</strong>
             </p>
-            
+
+            <p className="flex items-center justify-between">
+              <span>Phí vận chuyển</span>
+              <strong>{formatCurrency(SHIPPING_FEE)}</strong>
+            </p>
+
+            {/* KHỐI NHẬP MÃ KHUYẾN MÃI (ĐÃ CHUYỂN SANG BÊN PHẢI) */}
+            <div className="py-2">
+              {appliedVoucher ? (
+                <div className={`rounded-xl border p-3 flex flex-col gap-1 transition-all ${
+                  appliedVoucher.valid 
+                    ? 'border-green-200 bg-green-50' 
+                    : 'border-slate-300 bg-slate-100 grayscale'
+                }`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`font-bold text-sm ${appliedVoucher.valid ? 'text-green-700' : 'text-slate-500'}`}>
+                      Mã: {appliedVoucher.code}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setPromoCode(''); setAppliedVoucher(null); }}
+                      className="rounded-full bg-white px-3 py-1 text-xs font-bold text-red-600 hover:bg-red-100 transition"
+                    >
+                      Bỏ áp dụng
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2 mt-1">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value)}
+                    placeholder="Mã giảm giá"
+                    className="w-full min-w-0 flex-1 rounded-xl border border-border bg-white px-3 py-2 text-xs outline-none transition focus:border-sky-400"
+                  />
+                  <button type="button" onClick={() => handleApplyPromoCode()} className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-800">Áp dụng</button>
+                </div>
+              )}
+            </div>
+
             {discountAmount > 0 && (
-              <p className="flex items-center justify-between text-sky-600">
-                <span>Giảm giá</span>
-                <strong>- {formatCurrency(discountAmount)}</strong>
-              </p>
+              <div>
+                <p className="flex items-center justify-between text-sky-600">
+                  <span>Giảm giá</span>
+                  <strong>- {formatCurrency(discountAmount)}</strong>
+                </p>
+              {appliedVoucher?.code && (
+                  <p className="flex items-center justify-between text-sky-600 text-xs italic">
+                    <span>Mã áp dụng:</span>
+                  <strong>{appliedVoucher.code}</strong>
+                  </p>
+                )}
+              </div>
             )}
           </div>
 

@@ -397,7 +397,7 @@ function ProductsPage() {
               type="checkbox"
               checked={onlyAvailable}
               onChange={(event) => setOnlyAvailable(event.target.checked)}
-              className="h-4 w-4"
+              className="h-6 w-6 cursor-pointer rounded border-gray-300 text-slate-900 focus:ring-slate-900"
             />
             <span className="text-sm font-medium text-ink">
               Chỉ hiển thị sản phẩm còn hàng
