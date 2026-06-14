@@ -6,65 +6,9 @@ import { usePageTitle } from '../hooks/usePageTitle'
 import { getCategories, getProducts } from '../services/catalogService'
 import bannerImage from '../assets/images/banner.jpg'
 import category1 from '../assets/images/phonecase.jpg'
-import category2 from '../assets/images/charging.jpg'
-import category3 from '../assets/images/caple.png'
-import category4 from '../assets/images/audio.jpg'
-import category5 from '../assets/images/watchaccessories.jpg'
-import category6 from '../assets/images/desksetup.jpg'
 
 function normalizeCategory(value = '') {
   return String(value).trim().toLowerCase()
-}
-
-function getCategoryDisplay(categoryName = '') {
-  const name = normalizeCategory(categoryName)
-
-  if (name === 'iphone cases') {
-    return {
-      title: 'iPhone Cases',
-      image: category1,
-    }
-  }
-
-  if (name === 'charging') {
-    return {
-      title: 'Charging',
-      image: category2,
-    }
-  }
-
-  if (name === 'cables') {
-    return {
-      title: 'Cables',
-      image: category3,
-    }
-  }
-
-  if (name === 'audio') {
-    return {
-      title: 'Audio',
-      image: category4,
-    }
-  }
-
-  if (name === 'watch accessories') {
-    return {
-      title: 'Watch Accessories',
-      image: category5,
-    }
-  }
-
-  if (name === 'desk setup') {
-    return {
-      title: 'Desk Setup',
-      image: category6,
-    }
-  }
-
-  return {
-    title: categoryName || 'Category',
-    image: category1,
-  }
 }
 
 function HomePage() {
@@ -72,6 +16,7 @@ function HomePage() {
 
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
   const [categoryStart, setCategoryStart] = useState(0)
 
   // State quản lý Toast Notification
@@ -83,24 +28,20 @@ useEffect(() => {
   let active = true;
   async function loadData() {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      // Gọi API danh mục
-      const [prodRes, catRes] = await Promise.all([
-        fetch(`${API_URL}/api/products`),
-        fetch(`${API_URL}/api/categories`)
+      // Sử dụng catalogService để gọi API, khớp với logic trả về List<T> (mảng JSON) từ Backend
+      const [prodData, catData] = await Promise.all([
+        getProducts(),
+        getCategories()
       ]);
-      
-      const prodData = await prodRes.json();
-      const catData = await catRes.json();
       
       if (active) {
         setProducts(Array.isArray(prodData) ? prodData : []);
-        setCategories(Array.isArray(catData) ? catData : []); // Lưu vào state categories
-        setLoadingProducts(false);
-        setLoadingCategories(false);
+        setCategories(Array.isArray(catData) ? catData : []);
       }
     } catch (error) {
       console.error('Lỗi tải dữ liệu:', error);
+    } finally {
+      if (active) setLoading(false);
     }
   }
   loadData();
@@ -120,16 +61,20 @@ useEffect(() => {
     }
   }, [feedback])
 
-  const fallbackCategories = [
-    { id: 1, name: 'iPhone Cases' },
-    { id: 2, name: 'Charging' },
-    { id: 3, name: 'Cables' },
-    { id: 4, name: 'Audio' },
-    { id: 5, name: 'Watch Accessories' },
-    { id: 6, name: 'Desk Setup' },
-  ]
+  // Hàm xử lý đường dẫn ảnh danh mục từ Backend
+  const getCategoryImage = (category) => {
+    const imagePath = category.imageUrl || category.image || category.imagePath || category.thumbnail;
+    if (imagePath && typeof imagePath === 'string' && imagePath !== 'null') {
+      if (imagePath.startsWith('http')) return imagePath;
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+      let cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+      if (!cleanPath.startsWith('uploads/')) cleanPath = `uploads/${cleanPath}`;
+      return `${API_URL}/${cleanPath}`;
+    }
+    return category1; // Ảnh mặc định nếu không có dữ liệu
+  };
 
-  const categoryList = (categories.length ? categories : fallbackCategories).slice(0, 6)
+  const categoryList = categories.slice(0, 10); // Hiển thị tối đa 10 danh mục ở slider
   const visibleCategories = 4
   const maxCategoryStart = Math.max(0, categoryList.length - visibleCategories)
 
@@ -231,11 +176,11 @@ useEffect(() => {
               {categoryList.map((category) => {
                 const categoryName = category.name || category.categoryName || 'Danh mục'
                 const normalizedName = normalizeCategory(categoryName)
-                const display = getCategoryDisplay(categoryName)
+                const imageUrl = getCategoryImage(category)
 
                 return (
                   <div
-                    key={category.id || categoryName}
+                    key={category.id || normalizedName}
                     className="w-1/4 shrink-0 px-3"
                   >
                     <Link
@@ -245,15 +190,15 @@ useEffect(() => {
                       <div className="overflow-hidden rounded-[28px] bg-[#f3f3f3] transition duration-300 hover:-translate-y-1">
                         <div className="aspect-[4/6] overflow-hidden">
                           <img
-                            src={display.image}
-                            alt={display.title}
+                            src={imageUrl}
+                            alt={categoryName}
                             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                           />
                         </div>
 
                         <div className="flex items-center justify-between px-6 py-5">
                           <h3 className="text-xl font-semibold text-[#2d2d2d]">
-                            {display.title}
+                            {categoryName}
                           </h3>
 
                           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2d2d2d] text-lg text-white transition group-hover:translate-x-1">
@@ -287,7 +232,11 @@ useEffect(() => {
         <h2 className="mb-4 text-2xl font-bold text-ink">Sản phẩm nổi bật</h2>
 
         <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {products.map((product) => (
+          {loading ? (
+            <p className="col-span-full py-10 text-center text-slate-500">Đang tải sản phẩm...</p>
+          ) : products.length === 0 ? (
+            <p className="col-span-full py-10 text-center text-slate-500">Chưa có sản phẩm nổi bật.</p>
+          ) : products.slice(0, 10).map((product) => (
             <ProductCard
               key={product.id || product.productId}
               product={product}

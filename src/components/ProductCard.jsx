@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useCart } from '../contexts/CartContext'
 import {
   formatCurrency,
   getProductId,
@@ -10,38 +9,22 @@ import {
 } from '../utils/normalizers'
 
 function ProductCard({ product, compact = false, onNotify }) {
-  const { addToCart } = useCart()
   const [liked, setLiked] = useState(false)
 
   const productId = getProductId(product)
+
+  // Rút gọn số lượng đã bán theo hàng đơn vị (k cho nghìn, m cho triệu) để tiết kiệm diện tích
+  const soldCount = product?.soldQuantity || product?.sold || 0
+  const formattedSold = soldCount >= 1000000 
+    ? (soldCount / 1000000).toFixed(1).replace(/\.0$/, '') + 'm'
+    : soldCount >= 1000 
+      ? (soldCount / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+      : soldCount
 
   useEffect(() => {
     const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]')
     setLiked(wishlist.some((item) => getProductId(item) === productId))
   }, [productId])
-
-  async function handleAddToCart(event) {
-    if (event) {
-      event.preventDefault()
-      event.stopPropagation()
-    }
-    
-    if (!productId) return
-
-    try {
-      // ĐÃ SỬA: Lấy variantId từ mảng variants để gửi lên Backend
-      const variantId = product?.variants?.length > 0 ? product.variants[0].id : null;
-
-      // Truyền variantId vào hàm addToCart
-      await addToCart(productId, 1, variantId)
-      
-      if (onNotify) onNotify(`Đã thêm ${getProductName(product)} vào giỏ hàng thành công!`)
-    } catch (error) {
-      console.error('Lỗi khi thêm vào giỏ:', error)
-      if (onNotify) onNotify(error.message || 'Không thể thêm vào giỏ hàng')
-      else alert(error.message || 'Không thể thêm vào giỏ hàng')
-    }
-  }
 
   function handleToggleWishlist(event) {
     if (event) {
@@ -73,16 +56,6 @@ function ProductCard({ product, compact = false, onNotify }) {
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft">
       
-      <button
-        type="button"
-        onClick={handleToggleWishlist}
-        className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 text-2xl opacity-0 shadow-sm transition hover:scale-105 group-hover:opacity-100"
-      >
-        <span className={liked ? 'text-red-500' : 'text-slate-500'}>
-          {liked ? '♥' : '♡'}
-        </span>
-      </button>
-
       <Link to={`/products/${productId}`} className="flex h-full flex-col">
         <img
           src={getProductImage(product)}
@@ -107,13 +80,29 @@ function ProductCard({ product, compact = false, onNotify }) {
         </div>
       </Link>
 
-      <div className="mt-auto flex justify-center pb-5 px-5">
+      <div className="mt-auto flex items-center justify-between gap-2 px-5 pb-5">
+        <div className="flex flex-col">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 whitespace-nowrap">
+            Đã bán {formattedSold}
+          </span>
+        </div>
+
         <button
           type="button"
-          onClick={handleAddToCart}
-          className="w-full rounded-full bg-slate-900 px-6 py-2.5 font-semibold text-white transition hover:bg-slate-800"
+          onClick={handleToggleWishlist}
+          className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition-all shrink-0 ${
+            liked 
+              ? 'bg-red-50 border-red-100 text-red-500 shadow-sm' 
+              : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-white hover:text-red-500 hover:border-red-100'
+          }`}
         >
-          Thêm vào giỏ
+          <span 
+            className="material-symbols-outlined text-[18px]" 
+            style={liked ? { fontVariationSettings: "'FILL' 1" } : {}}
+          >
+            favorite
+          </span>
+          <span className="text-[11px] font-bold">Yêu thích</span>
         </button>
       </div>
     </article>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import ProductCard from '../components/ProductCard'
 import { useCart } from '../contexts/CartContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getBrands, getCategories, getProducts } from '../services/catalogService'
@@ -408,61 +409,12 @@ function ProductsPage() {
         <section className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {paginatedProducts.map((product, index) => {
-              const price = safePrice(product)
-              const productId = getProductId(product)
-              const productName = safeText(getProductName(product), 'Sản phẩm chưa đặt tên')
-              const productLink = `/products/${productId}`
-              const isLiked = likedIds.includes(productId)
-
               return (
-                <article
-                  className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
-                  key={productId || `${index}-${price}`}
-                >
-                  <button
-                    type="button"
-                    onClick={(event) => handleToggleWishlist(event, product)}
-                    className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 text-2xl opacity-0 shadow-sm transition hover:scale-105 group-hover:opacity-100"
-                    aria-label="Thích sản phẩm"
-                  >
-                    <span className={isLiked ? 'text-red-500' : 'text-slate-500'}>
-                      {isLiked ? '♥' : '♡'}
-                    </span>
-                  </button>
-
-                  <Link to={productLink} className="flex h-full flex-col">
-                    <div className="overflow-hidden">
-                      <img
-                        src={getProductImage(product)}
-                        alt={productName}
-                        className="aspect-[4/3] w-full object-cover"
-                      />
-                    </div>
-
-                    <div className="flex flex-1 flex-col p-5">
-                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-700">
-                        Sản phẩm Synex
-                      </p>
-
-                      <h3 className="mt-3 min-h-[64px] text-xl font-bold leading-snug text-ink hover:text-sky-700 line-clamp-2">
-                        {productName}
-                      </h3>
-
-                      <p className="mt-3 text-lg font-semibold text-slate-900">
-                        <strong>{formatCurrency(price)}</strong>
-                      </p>
-                    </div>
-                  </Link>
-
-                  <div className="px-5 pb-5 mt-auto">
-                    <Link
-                      to={productLink}
-                      className="flex w-full items-center justify-center rounded-full bg-slate-900 px-4 py-3 font-semibold text-white transition hover:bg-slate-800"
-                    >
-                      Xem chi tiết
-                    </Link>
-                  </div>
-                </article>
+                <ProductCard
+                  key={product.id || product.productId || index}
+                  product={product}
+                  onNotify={(msg) => setFeedback(msg)}
+                />
               )
             })}
           </div>

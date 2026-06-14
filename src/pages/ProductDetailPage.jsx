@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import ProductCard from '../components/ProductCard'
 import { useCart } from '../contexts/CartContext'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProductById, getProducts } from '../services/catalogService'
@@ -334,54 +335,14 @@ function ProductDetailPage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {relatedProducts.map((item) => {
-              const itemId = getProductId(item)
-              const itemName = getProductName(item)
-              const isLiked = likedIds.includes(itemId)
-
+            {relatedProducts.map((item, index) => {
               return (
-                <article
-                  key={itemId}
-                  className="group relative overflow-hidden rounded-3xl border border-border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft"
-                >
-                  <button
-                    type="button"
-                    onClick={(e) => handleToggleWishlist(e, item)}
-                    className="absolute right-4 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 text-2xl opacity-0 shadow-sm transition hover:scale-105 group-hover:opacity-100"
-                    aria-label="Thích sản phẩm"
-                  >
-                    <span className={isLiked ? 'text-red-500' : 'text-slate-500'}>
-                      {isLiked ? '♥' : '♡'}
-                    </span>
-                  </button>
-
-                  <Link to={`/products/${itemId}`} className="block">
-                    <img
-                      src={getProductImage(item)}
-                      alt={itemName}
-                      className="aspect-[4/3] w-full object-cover"
-                    />
-                  </Link>
-
-                  <div className="flex flex-col p-5">
-                    <h3 className="min-h-[56px] text-lg font-bold leading-snug text-ink line-clamp-2">
-                      <Link to={`/products/${itemId}`} className="hover:text-sky-700" title={itemName}>
-                        {itemName}
-                      </Link>
-                    </h3>
-
-                    <p className="mt-2 text-lg font-semibold text-slate-900">
-                      {formatCurrency(getProductPrice(item))}
-                    </p>
-
-                    <Link
-                      to={`/products/${itemId}`}
-                      className="mt-4 inline-flex justify-center rounded-full border border-slate-200 px-4 py-2.5 font-semibold text-slate-800 transition hover:bg-slate-50"
-                    >
-                      Xem chi tiết
-                    </Link>
-                  </div>
-                </article>
+                <ProductCard
+                  key={item.id || item.productId || index}
+                  product={item}
+                  compact
+                  onNotify={(msg) => setMessage(msg)}
+                />
               )
             })}
           </div>
