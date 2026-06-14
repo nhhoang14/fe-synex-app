@@ -188,7 +188,7 @@ useEffect(() => {
                       className="group block"
                     >
                       <div className="overflow-hidden rounded-[28px] bg-[#f3f3f3] transition duration-300 hover:-translate-y-1">
-                        <div className="aspect-[4/6] overflow-hidden">
+                        <div className="aspect-square overflow-hidden">
                           <img
                             src={imageUrl}
                             alt={categoryName}

@@ -99,7 +99,7 @@ function ProductCard({ product, compact = false, onNotify }) {
         <img
           src={getProductImage(product)}
           alt={getProductName(product)}
-          className="aspect-[4/3] w-full object-cover"
+          className="aspect-square w-full object-cover"
         />
 
         <div className="flex flex-1 flex-col p-5">
