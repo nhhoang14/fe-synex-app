@@ -195,7 +195,7 @@ function CheckoutPage() {
       setQrFailed(true)
     }
     return () => clearInterval(interval)
-  }, [qrOrder, timeLeft, token, fetchCart])
+  }, [qrOrder, token, fetchCart]) // Loại bỏ timeLeft để interval không bị reset mỗi giây
 
   // Logic Voucher
   // Tự động gọi API kiểm tra lại Voucher khi subtotal thay đổi (do cập nhật giỏ hàng hoặc giá)
@@ -423,10 +423,6 @@ function CheckoutPage() {
         setOrderSuccess(true)
         await fetchCart()
       }
-      // SỬA TẠI ĐÂY: Bật popup thay vì chỉ hiện dòng chữ
-      setOrderSuccess(true)
-      await fetchCart()
-      
     } catch (error) {
       setMessage(error.message || 'Đặt đơn thất bại. Vui lòng thử lại.')
     } finally {
