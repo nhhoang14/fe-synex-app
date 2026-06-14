@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { ROUTES } from '../constants'
 import { usePageTitle } from '../hooks/usePageTitle'
 import { getProducts } from '../services/catalogService'
-import { formatCurrency, getProductName, getProductPrice } from '../utils/normalizers'
+import { formatCurrency, getProductName, getProductPrice, normalizeImageUrl } from '../utils/normalizers'
 import { useAuth } from '../contexts/AuthContext'
 
 function AdminProductsPage() {
@@ -33,6 +33,7 @@ function AdminProductsPage() {
     }]);
     setImageFile(null);
     setImagePreview(null);
+    setExistingProductImageUrls([]);
     setCurrentView('add');
   };
   const handleEditProduct = (product) => {
@@ -50,18 +51,26 @@ function AdminProductsPage() {
     const hasVariants = product.variants && product.variants.length > 0;
     
     if (hasVariants) {
-      const loadedVariants = product.variants.map((v, index) => ({
-        id: v.id,
-        attributes: {
-           // Đọc các thuộc tính có sẵn (theo mockup của bạn là màu sắc, kết nối)
-           ...(v.color ? { 'Màu sắc': v.color } : {}),
-           ...(v.connection ? { 'Kết nối': v.connection } : {})
-        },
-        sku: v.sku || `MS-${product.id}-V${index}`,
-        price: v.price || product.price || '',
-        stock: v.stockQuantity || v.stock || 0,
-        imageUrl: v.imageUrl || ''
-      }));
+      const loadedVariants = product.variants.map((v, index) => {
+        // Chuyển mảng attributes từ Backend thành Object để hiển thị vào form
+        const parsedAttributes = {};
+        if (v.attributes && Array.isArray(v.attributes)) {
+          v.attributes.forEach(attr => {
+            parsedAttributes[attr.attributeName] = attr.attributeValue;
+          });
+        } else {
+          parsedAttributes['Phiên bản'] = 'Mặc định';
+        }
+
+        return {
+          id: v.id,
+          attributes: parsedAttributes,
+          sku: v.sku || `MS-${product.id}-V${index}`,
+          price: v.price || product.price || '',
+          stock: v.stockQuantity || v.stock || 0,
+          imageUrl: v.imageUrl || ''
+        };
+      });
       setGeneratedVariants(loadedVariants);
     } else {
       // Nếu sản phẩm không chia biến thể, tạo 1 dòng mặc định để sửa giá/kho
@@ -77,7 +86,9 @@ function AdminProductsPage() {
 
     // Làm rỗng mảng sinh tự động để tránh xung đột
     setAttributeGroups([]);
-    setImagePreview(product.imageUrl || null);
+    const productImageUrls = getProductImageUrls(product);
+    setExistingProductImageUrls(productImageUrls);
+    setImagePreview(productImageUrls.length > 0 ? normalizeImageUrl(productImageUrls[0]) : null);
     setImageFile(null); // Reset file upload
     setCurrentView('edit');
   };
@@ -94,6 +105,35 @@ function AdminProductsPage() {
   const [brands, setBrands] = useState([])
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
+  const [existingProductImageUrls, setExistingProductImageUrls] = useState([])
+
+  const MAX_IMAGE_SIZE_MB = 50
+  const MAX_REQUEST_SIZE_MB = 100
+  const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024
+  const MAX_REQUEST_SIZE_BYTES = MAX_REQUEST_SIZE_MB * 1024 * 1024
+
+  const getProductImageUrls = (product) => {
+    const urls = []
+    ;(product?.images || product?.productImages || []).forEach((img) => {
+      const url = typeof img === 'string' ? img : img?.imageUrl || img?.url
+      if (url) urls.push(url)
+    })
+    if (product?.imageUrl) urls.push(product.imageUrl)
+    return [...new Set(urls)]
+  }
+
+  const validateImageFile = (file) => {
+    if (!file) return true
+    if (!file.type?.startsWith('image/')) {
+      alert('Chỉ được upload file ảnh.')
+      return false
+    }
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      alert(`Ảnh quá lớn. Tối đa ${MAX_IMAGE_SIZE_MB}MB mỗi file.`)
+      return false
+    }
+    return true
+  }
 
   // Gọi API lấy categories và brands
   async function fetchCategoriesAndBrands() {
@@ -253,147 +293,158 @@ function AdminProductsPage() {
   }, [attributeGroups])
   const handleImageChange = (e) => {
     const file = e.target.files[0]
-    if (file) {
-      setImageFile(file)
-      setImagePreview(URL.createObjectURL(file))
+    if (!file) return
+    if (!validateImageFile(file)) {
+      e.target.value = null
+      return
     }
+
+    setImageFile(file)
+    setExistingProductImageUrls([])
+    setImagePreview(URL.createObjectURL(file))
   }
 
-  // --- TÍNH NĂNG MỚI: BẬT/TẮT, XÓA, UPLOAD ẢNH CHO TỪNG BIẾN THỂ ---
-  const handleToggleVariant = (index) => {
-    const updated = [...generatedVariants];
-    updated[index].active = !updated[index].active;
-    setGeneratedVariants(updated);
+  // Chỉ preview ảnh biến thể ở frontend. Không upload ngay khi chọn file.
+  // Upload ngay tại đây là nguyên nhân file đã nằm trong folder uploads dù sản phẩm lưu thất bại.
+  const handleVariantImageUpload = (index, file, event) => {
+    if (!file) return
+    if (!validateImageFile(file)) {
+      if (event?.target) event.target.value = null
+      return
+    }
+
+    const updatedVariants = [...generatedVariants]
+    const oldPreview = updatedVariants[index]?.imagePreview
+    if (oldPreview?.startsWith('blob:')) URL.revokeObjectURL(oldPreview)
+
+    updatedVariants[index] = {
+      ...updatedVariants[index],
+      rawFile: file,
+      imagePreview: URL.createObjectURL(file),
+      // imageUrl cũ chỉ được giữ khi không chọn file mới. Chọn file mới nghĩa là thay ảnh.
+      imageUrl: ''
+    }
+    setGeneratedVariants(updatedVariants)
+
+    if (event?.target) event.target.value = null
   }
 
-  const handleDeleteVariant = (index) => {
-    if (!window.confirm('Bạn có chắc muốn xóa biến thể này khỏi danh sách?')) return;
-    setGeneratedVariants(generatedVariants.filter((_, i) => i !== index));
+  const buildActiveVariants = () => {
+    return generatedVariants
+      .filter((v) => v.active !== false)
+      .map((v, index) => {
+        const attributes = Object.entries(v.attributes || {})
+          .filter(([attrName, attrValue]) => String(attrName || '').trim() && String(attrValue || '').trim())
+          .map(([attributeName, attributeValue]) => ({
+            attributeName: String(attributeName).trim(),
+            attributeValue: String(attributeValue).trim()
+          }))
+
+        return {
+          id: v.id || undefined,
+          sku: (v.sku || `MS-${Date.now().toString().slice(-4)}-${index}`).trim(),
+          price: Number(v.price),
+          stock: Number(v.stock),
+          active: true,
+          imageUrl: v.imageUrl || '',
+          rawFile: v.rawFile || null,
+          attributes
+        }
+      })
   }
 
-  const handleVariantImageUpload = async (index, file, event) => {
-    if (!file) return;
-    try {
-      // 1. TẢI ẢNH LÊN SERVER NGAY LẬP TỨC THEO Ý BẠN
-      const formData = new FormData(); 
-      formData.append('file', file); 
-      formData.append('purpose', 'PRODUCT_IMAGE');
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      
-      const res = await fetch(`${API_URL}/api/uploads/images`, { 
-        method: 'POST', 
-        headers: { Authorization: `Bearer ${token}` }, 
-        body: formData 
-      });
-      
-      if (!res.ok) {
-        const errText = await res.text();
-        let errMsg = errText;
-        try { 
-            const errObj = JSON.parse(errText); 
-            errMsg = errObj.message || errObj.error || errText; 
-        } catch(e) {}
-        throw new Error(errMsg || 'Lỗi máy chủ khi lưu ảnh!');
+  const validateBeforeSave = (variants) => {
+    if (!basicInfo.name.trim()) throw new Error('Vui lòng nhập tên sản phẩm.')
+    if (!basicInfo.description.trim()) throw new Error('Vui lòng nhập mô tả sản phẩm.')
+    if (!basicInfo.category) throw new Error('Vui lòng chọn danh mục.')
+    if (!basicInfo.brand) throw new Error('Vui lòng chọn thương hiệu.')
+    if (variants.length === 0) throw new Error('Cần ít nhất 1 biến thể đang bật.')
+
+    const seenSkus = new Set()
+    variants.forEach((variant, index) => {
+      if (!variant.sku) throw new Error(`Biến thể ${index + 1} chưa có SKU.`)
+      const normalizedSku = variant.sku.toUpperCase()
+      if (seenSkus.has(normalizedSku)) throw new Error(`SKU bị trùng trong form: ${variant.sku}`)
+      seenSkus.add(normalizedSku)
+      if (!Number.isFinite(variant.price) || variant.price <= 0) {
+        throw new Error(`Giá của biến thể ${variant.sku} phải lớn hơn 0.`)
       }
-      
-      const data = await res.json();
-      const updatedVariants = [...generatedVariants];
-      
-      // 2. Gán link thật trả về từ server để hiển thị UI
-      updatedVariants[index].imageUrl = data.url || data.imageUrl; 
-      
-      // 3. VẪN NGẦM GIỮ LẠI FILE VẬT LÝ để đẩy lên FormData khi ấn "Lưu Sản Phẩm"
-      updatedVariants[index].rawFile = file;
-      
-      setGeneratedVariants(updatedVariants);
-      
-    } catch (err) { 
-      alert(`Backend từ chối ảnh: ${err.message}`); 
-    } finally {
-      if (event && event.target) event.target.value = null;
-    }
-  };
+      if (!Number.isInteger(variant.stock) || variant.stock < 0) {
+        throw new Error(`Kho của biến thể ${variant.sku} phải là số nguyên không âm.`)
+      }
+    })
+  }
 
   async function handleSaveProduct(e) {
-    e.preventDefault();
-    
-    try {
-      const formData = new FormData();
-      
-      formData.append('name', basicInfo.name);
-      formData.append('description', basicInfo.description);
-      if (basicInfo.category) formData.append('categoryId', Number(basicInfo.category));
-      if (basicInfo.brand) formData.append('brandId', Number(basicInfo.brand));
-      formData.append('active', true);
+    e.preventDefault()
 
-      // Khớp chính xác tên 'productImages' trong ProductRequest.java
-      if (imageFile) {
-        formData.append('productImages', imageFile);
+    try {
+      const variants = buildActiveVariants()
+      validateBeforeSave(variants)
+
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const url = editingProductId
+        ? `${API_URL}/api/admin/products/${editingProductId}`
+        : `${API_URL}/api/admin/products`
+
+      // FIX CỨNG: lưu sản phẩm bằng JSON 100%, không dùng multipart/form-data ở màn này.
+      // Lý do: lỗi "Maximum upload size exceeded" chỉ xảy ra khi backend đang parse multipart.
+      // Với trường hợp không chọn ảnh, gửi JSON sẽ loại bỏ hoàn toàn multipart parser.
+      const body = {
+        name: basicInfo.name.trim(),
+        description: basicInfo.description.trim(),
+        categoryId: Number(basicInfo.category),
+        brandId: Number(basicInfo.brand),
+        active: true,
+        keepImageUrls: existingProductImageUrls,
+        variants: variants.map(({ rawFile, imagePreview, ...variant }) => ({
+          id: variant.id,
+          sku: variant.sku,
+          price: variant.price,
+          stock: variant.stock,
+          active: variant.active !== false,
+          imageUrl: variant.imageUrl || '',
+          attributes: variant.attributes
+        }))
       }
 
-      let activeIndex = 0;
-      generatedVariants.forEach((v) => {
-        if (v.active !== false) {
-          // Bổ sung truyền id của variant để backend Update đúng bản ghi khi sửa
-          if (v.id) formData.append(`variants[${activeIndex}].id`, v.id);
-
-          // Khớp chính xác các tên biến trong ProductVariantRequest.java
-          formData.append(`variants[${activeIndex}].sku`, (v.sku || `MS-${Date.now().toString().slice(-4)}-${activeIndex}`).trim());
-          formData.append(`variants[${activeIndex}].price`, Number(v.price) || 0);
-          formData.append(`variants[${activeIndex}].stock`, Number(v.stock) || 0); 
-          
-          if (v.rawFile) {
-            formData.append(`variants[${activeIndex}].variantImage`, v.rawFile); 
-          }
-
-          // [PHẦN SỬA LỖI CHÍNH]: Đẩy mảng attributes lên Backend chuẩn cấu trúc DTO
-          if (v.attributes && typeof v.attributes === 'object') {
-            let attrIndex = 0;
-            Object.entries(v.attributes).forEach(([attrName, attrValue]) => {
-              if (attrName && attrValue) {
-                // Ánh xạ vào danh sách VariantAttributeRequest trong ProductVariantRequest
-                formData.append(`variants[${activeIndex}].attributes[${attrIndex}].attributeName`, attrName.trim());
-                formData.append(`variants[${activeIndex}].attributes[${attrIndex}].attributeValue`, attrValue.trim());
-                attrIndex++;
-              }
-            });
-          }
-
-          activeIndex++;
-        }
-      });
-
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-      const url = editingProductId 
-        ? `${API_URL}/api/admin/products/${editingProductId}` 
-        : `${API_URL}/api/admin/products`;
+      console.log('[AdminProductsPage] save product as JSON, no multipart', {
+        url,
+        method: editingProductId ? 'PUT' : 'POST',
+        ignoredProductImageFile: imageFile ? { name: imageFile.name, size: imageFile.size } : null,
+        ignoredVariantFiles: variants
+          .filter((variant) => variant.rawFile)
+          .map((variant) => ({ sku: variant.sku, name: variant.rawFile.name, size: variant.rawFile.size }))
+      })
 
       const response = await fetch(url, {
         method: editingProductId ? 'PUT' : 'POST',
         headers: {
-          Authorization: `Bearer ${token}`
-          // Trình duyệt tự sinh boundary cho multipart/form-data nên KHÔNG truyền Content-Type
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: formData
-      });
+        body: JSON.stringify(body)
+      })
 
       if (!response.ok) {
-        let errorMessage = 'Lỗi lưu sản phẩm';
+        let errorMessage = 'Lỗi lưu sản phẩm'
         try {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch(err) {
-            errorMessage = await response.text();
+          const errorData = await response.json()
+          errorMessage = errorData.message || errorData.error || errorMessage
+        } catch (err) {
+          errorMessage = await response.text()
         }
-        throw new Error(errorMessage);
+        throw new Error(errorMessage)
       }
 
-      alert('Lưu sản phẩm thành công!');
-      setCurrentView('list');
-      fetchProductsList(); 
+      alert('Lưu sản phẩm thành công!')
+      setCurrentView('list')
+      setImageFile(null)
+      setImagePreview(null)
+      fetchProductsList()
     } catch (error) {
-      console.error('Lưu lỗi:', error);
-      alert('Không thể lưu sản phẩm: ' + error.message);
+      console.error('Lưu lỗi:', error)
+      alert('Không thể lưu sản phẩm: ' + error.message)
     }
   }
 
@@ -568,8 +619,8 @@ function AdminProductsPage() {
                           <label className="block w-10 h-10 mx-auto border border-slate-600 border-dashed rounded cursor-pointer hover:border-sky-400 transition overflow-hidden relative bg-slate-800" title="Tải ảnh biến thể">
                             {/* FIX: Thêm tham số sự kiện 'e' vào cuối hàm handleVariantImageUpload */}
                             <input type="file" className="hidden" accept="image/*" disabled={variant.active === false} onChange={(e) => handleVariantImageUpload(index, e.target.files[0], e)} />
-                            {variant.imageUrl ? (
-                              <img src={variant.imageUrl} alt="variant" className="w-full h-full object-cover" />
+                            {(variant.imagePreview || variant.imageUrl) ? (
+                              <img src={variant.imagePreview || normalizeImageUrl(variant.imageUrl)} alt="variant" className="w-full h-full object-cover" />
                             ) : (
                               <span className="material-symbols-outlined text-[18px] text-slate-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">add_photo_alternate</span>
                             )}
@@ -728,9 +779,10 @@ function AdminProductsPage() {
                           SKU: {variant.sku || `MS-${id}-V${vIdx}`}
                         </td>
                         <td className="px-4 py-3 text-sky-200 text-sm font-medium">
-                           {/* Giả lập lấy chuỗi thuộc tính nếu Backend chưa trả sẵn thành chuỗi */}
-                           {variant.color} {variant.color && variant.connection ? '/' : ''} {variant.connection}
-                           {!variant.color && !variant.connection && 'Phiên bản mặc định'}
+                          {variant.attributes && variant.attributes.length > 0
+                            ? variant.attributes.map(a => `${a.attributeName}: ${a.attributeValue}`).join(' / ')
+                            : 'Phiên bản mặc định'
+                          }
                         </td>
                         <td className="px-4 py-3 text-slate-400 text-sm">
                           {formatCurrency(variant.price || getProductPrice(product))}
