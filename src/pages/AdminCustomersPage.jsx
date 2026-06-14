@@ -116,9 +116,9 @@ function AdminCustomersPage() {
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
       
-      // CHÚ Ý: Đã đổi Endpoint gọi riêng để Set Enable/Status
-      const response = await fetch(`${API_URL}/api/admin/users/${id}/enable?enabled=${newStatusActive}`, {
-        method: 'PUT',
+      // Cập nhật API theo Backend: PATCH /{id}/activate?activated={boolean}
+      const response = await fetch(`${API_URL}/api/admin/users/${id}/activate?activated=${newStatusActive}`, {
+        method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` }
       });
 
