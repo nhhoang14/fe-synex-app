@@ -29,11 +29,10 @@ function HomePage() {
 
   function getProductSold(product) {
     if (typeof product?.soldQuantity === 'number') return product.soldQuantity
-    if (typeof product?.sold === 'number') return product.sold
 
-    return toObjectArray(product?.variants).reduce(
-      (total, variant) => total + Number(variant?.soldQuantity || variant?.sold || 0),
-      0,
+    return (product?.variants || []).reduce(
+      (total, v) => total + Number(v?.soldQuantity || 0),
+      0
     )
   }
 

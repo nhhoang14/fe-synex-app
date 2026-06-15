@@ -49,26 +49,43 @@ function NavBar() {
     return params.get('q') || ''
   }, [location.search])
 
+  // Đồng bộ từ khóa từ URL vào ô nhập liệu khi chuyển trang hoặc tải lại
+  useEffect(() => {
+    if (queryKeyword) {
+      setSearchKeyword(queryKeyword)
+    } else if (location.pathname !== ROUTES.PRODUCTS) {
+      setSearchKeyword('') // Xóa text nếu không ở trang sản phẩm
+    }
+  }, [queryKeyword, location.pathname])
+
   // Fetch sản phẩm cho thanh tìm kiếm
   useEffect(() => {
-    if (!searchOpen) return
-
-    let active = true
-
-    getProducts()
-      .then((data) => {
-        if (!active) return
-        setProducts(Array.isArray(data) ? data : [])
-      })
-      .catch(() => {
-        if (!active) return
-        setProducts([])
-      })
-
-    return () => {
-      active = false
+    if (!searchOpen || !searchKeyword.trim()) {
+      if (!searchKeyword.trim()) setProducts([])
+      return
     }
-  }, [searchOpen])
+
+    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+
+    // Kỹ thuật Debounce để tránh spam API quá nhiều khi người dùng gõ phím
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const url = `${baseUrl}/api/v1/search?q=${encodeURIComponent(searchKeyword.trim())}`;
+        console.log('📡 [NavBar] Đang gọi API lấy gợi ý:', url);
+
+        const res = await fetch(url)
+        if (res.ok) {
+          const data = await res.json()
+          setProducts(Array.isArray(data) ? data : [])
+        }
+      } catch (err) {
+        console.error("Lỗi lấy gợi ý tìm kiếm:", err)
+        setProducts([])
+      }
+    }, 300)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [searchOpen, searchKeyword])
 
   // Lấy giỏ hàng khi Hover mở Mini Cart
   useEffect(() => {
@@ -119,14 +136,9 @@ function NavBar() {
 
 
   const filteredProducts = useMemo(() => {
-    const keyword = searchKeyword.trim().toLowerCase()
-
-    if (!keyword) return products.slice(0, 6)
-
-    return products
-      .filter((product) => String(getProductName(product)).toLowerCase().includes(keyword))
-      .slice(0, 6)
-  }, [products, searchKeyword])
+    // Dữ liệu từ server đã được lọc sẵn, chỉ lấy top 6 để hiện gợi ý
+    return products.slice(0, 6)
+  }, [products])
 
   function handleSelectProduct(product) {
     const productName = getProductName(product)
@@ -430,6 +442,22 @@ function NavBar() {
             </button>
           </form>
         </div>
+
+        {/* HIỂN THỊ KẾT QUẢ GỢI Ý TỪ SMART SEARCH TRONG PANEL */}
+        {searchKeyword.trim() && filteredProducts.length > 0 && (
+          <div className="mt-4 divide-y divide-border border-t">
+            {filteredProducts.map((product) => (
+              <button
+                key={getProductId(product)}
+                onClick={() => handleSelectProduct(product)}
+                className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50 transition-colors"
+              >
+                <img src={getProductImage(product)} alt="" className="w-10 h-10 rounded-lg object-cover bg-slate-100" />
+                <span className="text-sm font-medium text-ink">{getProductName(product)}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </RightOverlayPanel>
 
     </header>

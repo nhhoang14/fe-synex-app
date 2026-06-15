@@ -15,7 +15,9 @@ function ProductCard({ product, compact = false, onNotify }) {
 
   const productId = getProductId(product)
 
-  const soldCount = product?.soldQuantity || product?.sold || 0
+  const soldCount = product?.soldQuantity || 
+                    (product?.variants || []).reduce((acc, v) => acc + (v.soldQuantity || 0), 0)
+
   const formattedSold = soldCount >= 1000000 
     ? (soldCount / 1000000).toFixed(1).replace(/\.0$/, '') + 'm'
     : soldCount >= 1000 

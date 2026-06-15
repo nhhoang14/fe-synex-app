@@ -48,8 +48,9 @@ function ProductsPage() {
   }, [feedback])
 
   function toObjectArray(data) {
-    if (!Array.isArray(data)) return []
-    return data.filter((item) => item && typeof item === 'object')
+    // Hỗ trợ cả List (Array) và Page (Object có trường content) từ Spring Boot
+    const array = Array.isArray(data) ? data : (data?.content || [])
+    return array.filter((item) => item && typeof item === 'object')
   }
 
   function safeText(value, fallback = '') {
@@ -91,24 +92,46 @@ function ProductsPage() {
 
   useEffect(() => {
     async function loadData() {
+      const query = searchParams.get('q') || '';
+      // Chuẩn hóa baseUrl: loại bỏ dấu gạch chéo ở cuối nếu có
+      const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '');
+
       try {
-        const productData = await getProducts()
-        setProducts(toObjectArray(productData))
-      } catch {
-        setProducts([])
+        let productData;
+        if (query.trim()) {
+          // 👉 GỌI CHÍNH XÁC API SEARCH
+          const searchUrl = `${baseUrl}/api/v1/search?q=${encodeURIComponent(query.trim())}`;
+          console.log('📡 [ProductsPage] Đang gọi API Search:', searchUrl);
+
+          const res = await fetch(searchUrl);
+          if (!res.ok) throw new Error(`Search API error: ${res.status}`);
+          productData = await res.json();
+          console.log('✅ [ProductsPage] Dữ liệu từ BE:', productData);
+        } else {
+          // Trường hợp không có q trên URL, lấy toàn bộ sản phẩm
+          productData = await getProducts();
+        }
+        
+        setCurrentPage(1); // 👉 LUÔN reset về trang 1 khi dữ liệu mới được tải về
+
+        const finalArray = toObjectArray(productData);
+        setProducts(finalArray);
+      } catch (err) {
+        console.error('❌ [ProductsPage] Lỗi khi tải sản phẩm:', err);
+        setProducts([]);
       }
 
       try {
         const categoryData = await getCategories()
         setCategories(toObjectArray(categoryData))
-      } catch {
+      } catch (err) {
         setCategories([])
       }
 
       try {
         const brandData = await getBrands()
         setBrands(toObjectArray(brandData))
-      } catch {
+      } catch (err) {
         setBrands([])
       }
     }
@@ -116,22 +139,33 @@ function ProductsPage() {
     loadData()
     loadLikedIds()
 
+    // 👉 Reset các bộ lọc phụ khi có từ khóa tìm kiếm mới để tránh ẩn nhầm kết quả
+    if (searchParams.get('q')) {
+      setBrandFilter('all');
+      setMaxPrice('');
+      setOnlyAvailable(false); // 👉 Reset cả bộ lọc "còn hàng" để hiện đầy đủ kết quả search
+    }
+
     window.addEventListener('wishlistUpdated', loadLikedIds)
 
     return () => {
       window.removeEventListener('wishlistUpdated', loadLikedIds)
     }
-  }, [])
+    // Chạy lại khi tham số tìm kiếm thay đổi
+  }, [searchParams])
 
   const filteredProducts = useMemo(() => {
     const categoryValue = categoryFilter.toLowerCase()
     const brandValue = brandFilter.toLowerCase()
 
+    // 👉 Nếu đang thực hiện tìm kiếm (Smart Search), ưu tiên hiển thị đúng danh sách và thứ tự từ Backend trả về
+    if (keywordFilter) {
+      return products
+    }
+
+    // 👉 BỎ logic lọc .includes() thủ công tại đây.
+    // Backend SmartSearchService đã xử lý việc tìm kiếm theo từ khóa rồi.
     return [...products]
-      .filter((product) => {
-        const productName = safeText(getProductName(product)).toLowerCase()
-        return productName.includes(keywordFilter)
-      })
       .filter((product) => {
         if (categoryValue === 'all') return true
 
@@ -205,8 +239,9 @@ function ProductsPage() {
   const paginatedProducts = filteredProducts.slice(startIndex, startIndex + productsPerPage)
 
   useEffect(() => {
-    setCurrentPage(1)
-  }, [keywordFilter, categoryFilter, brandFilter, sortBy, onlyAvailable, maxPrice])
+    // Khi bất kỳ bộ lọc nào thay đổi, quay về trang 1
+    setCurrentPage(1);
+  }, [searchParams, brandFilter, sortBy, onlyAvailable, maxPrice]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
